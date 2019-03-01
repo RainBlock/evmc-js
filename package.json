@@ -1,0 +1,45 @@
+{
+  "name": "evmc",
+  "version": "1.0.0",
+  "description": "Ethereum EVMC bindings for node.js",
+  "main": "dist/evmc.js",
+  "scripts": {
+    "test": "git submodule update --init --recursive; mkdir -p libbuild; cd libbuild;mkdir aleth; cd aleth; cmake ../../aleth -DALETH_INTERPRETER_SHARED=true -DTOOLS=false -DTESTS=false; cmake --build .;cd ..;cd ..;mocha -r ts-node/register src/*.spec.ts --timeout 40000",
+    "rebuild": "git submodule update --init --recursive; mkdir -p libbuild; cd libbuild;mkdir evmc; cd evmc; cmake ../../evmc; cmake --build .;cd ..;cd ..;node-gyp rebuild",
+    "check": "gts check",
+    "clean": "gts clean",
+    "compile": "tsc -p .",
+    "fix": "gts fix",
+    "install" : "npm run rebuild",
+    "prepare": "npm run compile",
+    "pretest": "npm run compile",
+    "posttest": "npm run check"
+  },
+  "keywords": [
+    "ethereum",
+    "evmc",
+    "evm"
+  ],
+  "author": "Michael Wei <mwei@cs.ucsd.edu>",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "gts": "^0.9.0",
+    "typescript": "^3.3.1"
+  },
+  "engines": {
+    "node": ">= 10.0.0"
+  },
+  "dependencies": {
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.6",
+    "@types/node": "^11.9.6",
+    "bindings": "^1.5.0",
+    "chai": "^4.2.0",
+    "evmasm": "0.0.3",
+    "mocha": "^6.0.2",
+    "node-gyp": "^3.8.0",
+    "segfault-handler": "^1.0.1",
+    "ts-node": "^8.0.2",
+    "typedoc": "^0.14.2"
+  }
+}
