@@ -1258,7 +1258,8 @@ void emit_log_js(napi_env env, napi_value js_callback, void* context, struct js_
 
     create_bigint_from_evmc_address(env, data->address, &values[0]);
   
-    status = napi_create_buffer(env, data->data_size, (void**) &data->data, &values[1]);
+    uint8_t* buffer;
+    status = napi_create_buffer_copy(env, data->data_size, (void*) data->data, (void**) &buffer, &values[1]);
     assert(status == napi_ok);
 
     status = napi_create_array_with_length(env, data->topics_count, &values[2]);
@@ -1273,7 +1274,7 @@ void emit_log_js(napi_env env, napi_value js_callback, void* context, struct js_
     }
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 1, values, &result);
+    status = napi_call_function(env, global, js_callback, 3, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -1306,7 +1307,6 @@ void emit_log(struct evmc_js_context* context,
                                  const evmc_bytes32 topics[],
                                  size_t topics_count) {
     napi_status status;
-    
     struct js_emit_log_call callinfo;
     callinfo.address = address;
     callinfo.data = data;
@@ -1423,7 +1423,7 @@ void create_callbacks_from_context(napi_env env, struct js_execution_context* ct
   status = napi_get_named_property(env, node_context, "getBlockHash", &get_block_hash_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, get_block_hash_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) get_tx_context_js, &ctx->context.get_block_hash_fn);
+  status = napi_create_threadsafe_function(env, get_block_hash_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) get_block_hash_js, &ctx->context.get_block_hash_fn);
   assert(status == napi_ok);
 
   napi_value emit_log_callback;

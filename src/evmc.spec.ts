@@ -37,6 +37,17 @@ const TX_GASPRICE = 100n;
 const TX_DESTINATION = BALANCE_ACCOUNT;
 const TX_GAS = 60000n;
 
+const BLOCKHASH_NUM = BLOCK_NUMBER - 4n;
+const BLOCKHASH_HASH =
+    0xecd99ffdcb9df33c9ca049ed55f74447201e3774684815bc590354427595232bn;
+
+const SELF_DESTRUCT_BENEFICIARY = 0xA643e67B31F2E0A7672FD87d3faa28eAa845E311n;
+
+const LOG_DATA = Buffer.from([0xab, 0xfe]);
+const LOG_TOPIC1 =
+    0xecd99eedcb9df33c9ca049ed55f74447201e3774684815bc590354427595232bn;
+const LOG_TOPIC2 = 0x2fab01632ab26a6349aedd19f5f8e4bbd47771n;
+
 const EVM_MESSAGE = {
   kind: EvmcCallKind.EVMC_CALL,
   sender: TX_ORIGIN,
@@ -46,6 +57,7 @@ const EVM_MESSAGE = {
   inputData: Buffer.from([]),
   value: 0n
 };
+
 
 class TestEVM extends Evmc {
   async getAccountExists(account: bigint) {
@@ -87,7 +99,12 @@ class TestEVM extends Evmc {
   }
 
   async selfDestruct(account: bigint, beneficiary: bigint) {
-    return;
+    if (account === TX_ORIGIN && beneficiary === SELF_DESTRUCT_BENEFICIARY) {
+      return;
+    }
+    throw new Error(
+        `Self destruct on unexpected origin or beneficary (origin: ${
+            account.toString(16)} beneficairy:${beneficiary.toString(16)})`);
   }
 
   async call(message: EvmcMessage) {
@@ -112,10 +129,19 @@ class TestEVM extends Evmc {
   }
 
   async getBlockHash(num: bigint) {
-    return 0n;
+    if (num === BLOCKHASH_NUM) {
+      return BLOCKHASH_HASH;
+    }
+    throw new Error(
+        `Unexpected block number requested for blockhash (got ${num})`);
   }
 
-  async emitLog(account: bigint, data: Buffer, topics: Array<bigint>) {}
+  async emitLog(account: bigint, data: Buffer, topics: Array<bigint>) {
+    if (account === BALANCE_ACCOUNT && data.equals(LOG_DATA) && topics.length === 2 && topics[0] === LOG_TOPIC1 && topics[1] === LOG_TOPIC2) {
+        return;
+    }
+    throw new Error(`Unexpected log emitted: account: ${account.toString(16)} data: ${data.toString('hex')} topics: ${topics}`);
+  }
 }
 
 describe('Try EVM creation', () => {
@@ -260,6 +286,35 @@ describe('Try EVM creation', () => {
           data(0xFE) // Invalid Opcode
           success:
           stop
+          `),
+            'hex'));
+    result.statusCode.should.equal(EvmcStatusCode.EVMC_SUCCESS);
+  });
+
+  it('should successfully successfully fetch a blockhash', async () => {
+    const result = await evm.execute(
+        EVM_MESSAGE,
+        Buffer.from(
+            evmasm.compile(`
+          jumpi(success, eq(blockhash(0x${BLOCKHASH_NUM.toString(16)}), 0x${
+                BLOCKHASH_HASH.toString(16)}))
+          data(0xFE) // Invalid Opcode
+          success:
+          stop
+          `),
+            'hex'));
+    result.statusCode.should.equal(EvmcStatusCode.EVMC_SUCCESS);
+  });
+
+
+  it('should successfully emit a log', async () => {
+    const result = await evm.execute(
+        EVM_MESSAGE,
+        Buffer.from(
+            evmasm.compile(`
+            mstore(0, 0x${LOG_DATA.toString('hex')})
+            log2(${32 - LOG_DATA.length}, ${LOG_DATA.length}, 0x${
+                LOG_TOPIC1.toString(16)}, 0x${LOG_TOPIC2.toString(16)})
           `),
             'hex'));
     result.statusCode.should.equal(EvmcStatusCode.EVMC_SUCCESS);
