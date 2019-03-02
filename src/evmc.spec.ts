@@ -137,10 +137,13 @@ class TestEVM extends Evmc {
   }
 
   async emitLog(account: bigint, data: Buffer, topics: Array<bigint>) {
-    if (account === BALANCE_ACCOUNT && data.equals(LOG_DATA) && topics.length === 2 && topics[0] === LOG_TOPIC1 && topics[1] === LOG_TOPIC2) {
-        return;
+    if (account === BALANCE_ACCOUNT && data.equals(LOG_DATA) &&
+        topics.length === 2 && topics[0] === LOG_TOPIC1 &&
+        topics[1] === LOG_TOPIC2) {
+      return;
     }
-    throw new Error(`Unexpected log emitted: account: ${account.toString(16)} data: ${data.toString('hex')} topics: ${topics}`);
+    throw new Error(`Unexpected log emitted: account: ${
+        account.toString(16)} data: ${data.toString('hex')} topics: ${topics}`);
   }
 }
 
