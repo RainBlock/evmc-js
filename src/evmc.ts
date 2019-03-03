@@ -373,8 +373,8 @@ export abstract class Evmc {
    *
    *  @param address      The address of the account.
    *  @param offset       The offset of the code to copy.
-   *  @param length       The length of the code to copy. A buffer returned larger
-   *                      than length will be truncated.
+   *  @param length       The length of the code to copy. A buffer returned
+   * larger than length will be truncated.
    *  @param buffer       A buffer containing the code, up to size length.
    * Client.
    */

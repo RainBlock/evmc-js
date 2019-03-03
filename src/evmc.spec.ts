@@ -2,6 +2,7 @@ import 'mocha';
 
 import * as chai from 'chai';
 import * as path from 'path';
+import * as util from 'util';
 
 import {Evmc, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus} from './evmc';
 
@@ -37,6 +38,13 @@ const TX_GASPRICE = 100n;
 const TX_DESTINATION = BALANCE_ACCOUNT;
 const TX_GAS = 60000n;
 
+const CALL_ACCOUNT = 0x44fD3AB8381cC3d14AFa7c4aF7Fd13CdC65026E1n;
+const CODE_INPUT_DATA = Buffer.from(
+    'ccd99eedcb9df33c9ca049ed55f74447201e3774684815bc590354427595232b', 'hex');
+const CODE_OUTPUT_DATA = Buffer.from(
+    '0xb745858cc23a311a303b43f18813d7331a257a817201576533298ffbe3809b32',
+    'hex');
+
 const BLOCKHASH_NUM = BLOCK_NUMBER - 4n;
 const BLOCKHASH_HASH =
     0xecd99ffdcb9df33c9ca049ed55f74447201e3774684815bc590354427595232bn;
@@ -49,7 +57,8 @@ const LOG_TOPIC1 =
 const LOG_TOPIC2 = 0x2fab01632ab26a6349aedd19f5f8e4bbd47771n;
 
 const CODE_ACCOUNT = 0xa53432ff16287dae8c4e09209a70cca8aaa3f50an;
-const CODE_CODE = Buffer.from('ecd99eedcb9df33c9ca049ed55f74447201e3774684815bc590354427595232b', 'hex');
+const CODE_CODE = Buffer.from(
+    'ecd99eedcb9df33c9ca049ed55f74447201e3774684815bc590354427595232b', 'hex');
 
 const EVM_MESSAGE = {
   kind: EvmcCallKind.EVMC_CALL,
@@ -98,10 +107,11 @@ class TestEVM extends Evmc {
   }
 
   async copyCode(account: bigint, offset: number, length: number) {
-      if (account === CODE_ACCOUNT && offset === 0 && length === CODE_CODE.length) {
-        return CODE_CODE;
-      }
-      throw new Error(`Invalid code to copy for ${CODE_ACCOUNT}`);
+    if (account === CODE_ACCOUNT && offset === 0 &&
+        length === CODE_CODE.length) {
+      return CODE_CODE;
+    }
+    throw new Error(`Invalid code to copy for ${CODE_ACCOUNT}`);
   }
 
   async selfDestruct(account: bigint, beneficiary: bigint) {
@@ -114,12 +124,15 @@ class TestEVM extends Evmc {
   }
 
   async call(message: EvmcMessage) {
-    return {
-      statusCode: EvmcStatusCode.EVMC_SUCCESS,
-      gasLeft: 0n,
-      outputData: Buffer.from([]),
-      createAddress: 0n
-    };
+    if (message.inputData.equals(CODE_INPUT_DATA)) {
+      return {
+        statusCode: EvmcStatusCode.EVMC_SUCCESS,
+        gasLeft: 10000n,
+        outputData: CODE_OUTPUT_DATA,
+        createAddress: 0n
+      };
+    }
+    throw new Error(`Unexpected input message ${util.inspect(message)}`);
   }
 
   async getTxContext() {
@@ -337,6 +350,22 @@ describe('Try EVM creation', () => {
             extcodecopy(0x${CODE_ACCOUNT.toString(16)}, 0, 0, 
             0x${CODE_CODE.length.toString(16)})
             jumpi(success, eq(mload(0), 0x${CODE_CODE.toString('hex')}))
+            data(0xFE) // Invalid Opcode
+            success:
+            stop
+          `),
+            'hex'));
+    result.statusCode.should.equal(EvmcStatusCode.EVMC_SUCCESS);
+  });
+
+  it('should successfully call', async () => {
+    const result = await evm.execute(
+        EVM_MESSAGE,
+        Buffer.from(
+            evmasm.compile(`
+            mstore(0, 0x${CODE_INPUT_DATA.toString('hex')});
+            delegatecall(10000, 0x${CALL_ACCOUNT}, 0, 32, 32, 32)
+            jumpi(success, eq(mload(32), 0x${CODE_OUTPUT_DATA.toString('hex')}))
             data(0xFE) // Invalid Opcode
             success:
             stop
