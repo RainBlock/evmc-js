@@ -603,9 +603,14 @@ napi_value copy_code_js_promise_success(napi_env env, napi_callback_info info) {
     status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
     assert(status == napi_ok);
 
-    bool lossless = true;
-    status = napi_get_value_bigint_uint64(env, argv[0], (uint64_t*) &data->result, &lossless);
+    char* node_buffer;
+    size_t node_buffer_length;
+    status = napi_get_buffer_info(env, argv[0], (void**) &node_buffer, &node_buffer_length);
     assert(status == napi_ok);
+
+    size_t bytes_written = (node_buffer_length < data->buffer_size) ? node_buffer_length : data->buffer_size;
+    memcpy(data->buffer_data, node_buffer, bytes_written);
+    data->result = bytes_written;
 
     uv_sem_post(&data->sem);
 
@@ -623,10 +628,10 @@ void copy_code_js(napi_env env, napi_value js_callback, void* context, struct js
 
     create_bigint_from_evmc_address(env, data->address, &values[0]);
 
-    status = napi_create_bigint_uint64(env, data->code_offset, &values[1]);
+    status = napi_create_int64(env, data->code_offset, &values[1]);
     assert(status == napi_ok);
 
-    status = napi_create_buffer(env, data->buffer_size, (void**) &data->buffer_data, &values[2]);
+    status = napi_create_int64(env, data->buffer_size, &values[2]);
     assert(status == napi_ok);
 
     napi_value result;
@@ -638,9 +643,14 @@ void copy_code_js(napi_env env, napi_value js_callback, void* context, struct js
     assert(status == napi_ok);
 
     if (!isPromise) {
-      bool lossless = true;
-      status = napi_get_value_bigint_uint64(env, result, (uint64_t*) &data->result, &lossless);
+      char* node_buffer;
+      size_t node_buffer_length;
+      status = napi_get_buffer_info(env, result, (void**) &node_buffer, &node_buffer_length);
       assert(status == napi_ok);
+
+      size_t bytes_written = (node_buffer_length < data->buffer_size) ?  node_buffer_length : data->buffer_size;
+      memcpy(data->buffer_data, (void**) node_buffer, bytes_written);
+      data->result = bytes_written;
 
       uv_sem_post(&data->sem);
     } else {
@@ -671,7 +681,7 @@ size_t copy_code(struct evmc_js_context* context,
     callinfo.code_offset = code_offset;
     callinfo.buffer_data = buffer_data;
     callinfo.buffer_size = buffer_size;
-  
+
     status = napi_acquire_threadsafe_function(context->copy_code_fn);
     assert(status == napi_ok);
 

@@ -48,6 +48,9 @@ const LOG_TOPIC1 =
     0xecd99eedcb9df33c9ca049ed55f74447201e3774684815bc590354427595232bn;
 const LOG_TOPIC2 = 0x2fab01632ab26a6349aedd19f5f8e4bbd47771n;
 
+const CODE_ACCOUNT = 0xa53432ff16287dae8c4e09209a70cca8aaa3f50an;
+const CODE_CODE = Buffer.from('ecd99eedcb9df33c9ca049ed55f74447201e3774684815bc590354427595232b', 'hex');
+
 const EVM_MESSAGE = {
   kind: EvmcCallKind.EVMC_CALL,
   sender: TX_ORIGIN,
@@ -94,8 +97,11 @@ class TestEVM extends Evmc {
     throw new Error(`Invalid code size account (got ${account.toString(16)})`);
   }
 
-  async copyCode(account: bigint, offset: bigint, data: Buffer) {
-    return 0n;
+  async copyCode(account: bigint, offset: number, length: number) {
+      if (account === CODE_ACCOUNT && offset === 0 && length === CODE_CODE.length) {
+        return CODE_CODE;
+      }
+      throw new Error(`Invalid code to copy for ${CODE_ACCOUNT}`);
   }
 
   async selfDestruct(account: bigint, beneficiary: bigint) {
@@ -318,6 +324,22 @@ describe('Try EVM creation', () => {
             mstore(0, 0x${LOG_DATA.toString('hex')})
             log2(${32 - LOG_DATA.length}, ${LOG_DATA.length}, 0x${
                 LOG_TOPIC1.toString(16)}, 0x${LOG_TOPIC2.toString(16)})
+          `),
+            'hex'));
+    result.statusCode.should.equal(EvmcStatusCode.EVMC_SUCCESS);
+  });
+
+  it('should successfully get external code', async () => {
+    const result = await evm.execute(
+        EVM_MESSAGE,
+        Buffer.from(
+            evmasm.compile(`
+            extcodecopy(0x${CODE_ACCOUNT.toString(16)}, 0, 0, 
+            0x${CODE_CODE.length.toString(16)})
+            jumpi(success, eq(mload(0), 0x${CODE_CODE.toString('hex')}))
+            data(0xFE) // Invalid Opcode
+            success:
+            stop
           `),
             'hex'));
     result.statusCode.should.equal(EvmcStatusCode.EVMC_SUCCESS);

@@ -264,8 +264,8 @@ interface EvmJsContext {
       Promise<EvmcStorageStatus>|EvmcStorageStatus;
   getBalance(account: bigint): Promise<bigint>|bigint;
   getCodeSize(account: bigint): Promise<bigint>|bigint;
-  copyCode(account: bigint, offset: bigint, data: Buffer):
-      Promise<bigint>|bigint;
+  copyCode(account: bigint, offset: number, length: number):
+      Promise<Buffer>|Buffer;
   selfDestruct(account: bigint, beneficiary: bigint): Promise<void>|void;
   call(message: EvmcMessage): Promise<EvmcResult>|EvmcResult;
   getTxContext(): Promise<EvmcTxContext>|EvmcTxContext;
@@ -368,18 +368,18 @@ export abstract class Evmc {
    *  This callback function is used by an EVM to request a copy of the code
    *  of the given account to the memory buffer provided by the EVM.
    *  The Client MUST copy the requested code, starting with the given offset,
-   *  to the provided memory buffer up to the size of the buffer or the size of
+   *  to the returned memory buffer up to length or the size of
    *  the code, whichever is smaller.
    *
    *  @param address      The address of the account.
-   *  @param offset  The offset of the code to copy.
-   *  @param buffer  The pointer to the memory buffer allocated by the EVM
-   *                      to store a copy of the requested code.
-   *  @return             The number of bytes copied to the buffer by the
+   *  @param offset       The offset of the code to copy.
+   *  @param length       The length of the code to copy. A buffer returned larger
+   *                      than length will be truncated.
+   *  @param buffer       A buffer containing the code, up to size length.
    * Client.
    */
-  abstract copyCode(account: bigint, offset: bigint, data: Buffer):
-      Promise<bigint>|bigint;
+  abstract copyCode(account: bigint, offset: number, length: number):
+      Promise<Buffer>|Buffer;
 
 
   /**
