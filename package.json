@@ -4,13 +4,14 @@
   "description": "Ethereum EVMC bindings for node.js",
   "main": "dist/evmc.js",
   "scripts": {
+    "benchmark": "node -r ts-node/register src/evmc.bench.ts",
     "test": "git submodule update --init --recursive; mkdir -p libbuild; cd libbuild;mkdir aleth; cd aleth; cmake ../../aleth -DALETH_INTERPRETER_SHARED=true -DTOOLS=false -DTESTS=false; cd libaleth-interpreter; cmake --build .; cd ..; cd ..;cd ..;mocha -r ts-node/register src/*.spec.ts --timeout 40000",
     "rebuild": "git submodule update --init --recursive; mkdir -p libbuild; cd libbuild;mkdir evmc; cd evmc; cmake ../../evmc; cmake --build .;cd ..;cd ..;node-gyp rebuild",
     "check": "gts check",
     "clean": "gts clean",
     "compile": "tsc -p .",
     "fix": "gts fix",
-    "install" : "npm run rebuild",
+    "install": "npm run rebuild",
     "prepare": "npm run compile",
     "pretest": "npm run compile",
     "posttest": "npm run check"
@@ -30,9 +31,11 @@
     "node": ">= 10.0.0"
   },
   "dependencies": {
+    "@types/benchmark": "^1.0.31",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.6",
     "@types/node": "^11.9.6",
+    "benchmark": "^2.1.4",
     "bindings": "^1.5.0",
     "chai": "^4.2.0",
     "evmasm": "0.0.3",
