@@ -1,7 +1,10 @@
 import * as benchmark from 'benchmark';
-import {Evmc, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus} from './evmc';
 import * as path from 'path';
+import * as process from 'process';
 import * as util from 'util';
+
+import {Evmc, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus} from './evmc';
+
 const evmasm = require('evmasm');
 
 interface BenchmarkRun {
@@ -39,15 +42,15 @@ const runSuite = (suite: benchmark.Suite, name: string, async = false) => {
 };
 
 interface BenchmarkDeferrable {
-    resolve: () => void;
-  }
-  
-  interface BenchmarkRun {
-    name: string;
-    hz: number;
-    stats: benchmark.Stats;
-  }
-  
+  resolve: () => void;
+}
+
+interface BenchmarkRun {
+  name: string;
+  hz: number;
+  stats: benchmark.Stats;
+}
+
 /**
  * Simple wrapper for benchmark.js to add an asynchronous test.
  *  @param name         The name of the test to run.
@@ -224,38 +227,48 @@ class TestEVM extends Evmc {
   }
 }
 
+const getDynamicLibraryExtension = () => {
+  return process.platform === 'win32' ?
+      'dll' :
+      process.platform === 'darwin' ? 'dylib' : 'so';
+};
+
 const alethPath = path.join(
     __dirname,
-    '../libbuild/aleth/libaleth-interpreter/libaleth-interpreter.dylib');
+    `../libbuild/aleth/libaleth-interpreter/libaleth-interpreter.${
+        getDynamicLibraryExtension()}`);
 // Test the performance of evmc creation
 suite = new benchmark.Suite('evmc_creation');
 suite.add('create', () => {
-    const evm = new TestEVM(alethPath);
+  const evm = new TestEVM(alethPath);
 });
 runSuite(suite, 'evmc_creation');
 // Test the performance of evmc execution
 suite = new benchmark.Suite('evmc_execution');
 
 const MAX_PARALLELISM = 4;
-const evm : Evmc[] = [];
+const evm: Evmc[] = [];
 for (let i = 0; i < MAX_PARALLELISM; i++) {
-    evm.push(new TestEVM(alethPath));
+  evm.push(new TestEVM(alethPath));
 }
 const SIMPLE_MESSAGE = {
-    kind: EvmcCallKind.EVMC_CALL,
-    sender: TX_ORIGIN,
-    depth: 0,
-    destination: TX_DESTINATION,
-    gas: TX_GAS,
-    inputData: Buffer.from([]),
-    value: 0n
-  };
+  kind: EvmcCallKind.EVMC_CALL,
+  sender: TX_ORIGIN,
+  depth: 0,
+  destination: TX_DESTINATION,
+  gas: TX_GAS,
+  inputData: Buffer.from([]),
+  value: 0n
+};
 
-const SINGLE_STORE_CONTRACT = Buffer.from(evmasm.compile(`
+const SINGLE_STORE_CONTRACT = Buffer.from(
+    evmasm.compile(`
   sstore(0x${STORAGE_ADDRESS.toString(16)}, 0x${STORAGE_VALUE.toString(16)})
-`), 'hex');
+`),
+    'hex');
 
-const TEN_STORE_CONTRACT = Buffer.from(evmasm.compile(`
+const TEN_STORE_CONTRACT = Buffer.from(
+    evmasm.compile(`
   sstore(0x${STORAGE_ADDRESS.toString(16)}, 0x${STORAGE_VALUE.toString(16)})
   sstore(0x${STORAGE_ADDRESS.toString(16)}, 0x${STORAGE_VALUE.toString(16)})
   sstore(0x${STORAGE_ADDRESS.toString(16)}, 0x${STORAGE_VALUE.toString(16)})
@@ -266,28 +279,35 @@ const TEN_STORE_CONTRACT = Buffer.from(evmasm.compile(`
   sstore(0x${STORAGE_ADDRESS.toString(16)}, 0x${STORAGE_VALUE.toString(16)})
   sstore(0x${STORAGE_ADDRESS.toString(16)}, 0x${STORAGE_VALUE.toString(16)})
   sstore(0x${STORAGE_ADDRESS.toString(16)}, 0x${STORAGE_VALUE.toString(16)})
-`), 'hex');
+`),
+    'hex');
 
 
-addAsyncTest('async no-op', async() =>{});
-addAsyncTest('execute null contract', async() =>{ await evm[0].execute(SIMPLE_MESSAGE, Buffer.from([])); });
-addAsyncTest('parallel execute null contract', async() =>{ 
-    await Promise.all(evm.map(e => {
-        e.execute(SIMPLE_MESSAGE, Buffer.from([]));
-    }));
+addAsyncTest('async no-op', async () => {});
+addAsyncTest('execute null contract', async () => {
+  await evm[0].execute(SIMPLE_MESSAGE, Buffer.from([]));
+});
+addAsyncTest('parallel execute null contract', async () => {
+  await Promise.all(evm.map(e => {
+    e.execute(SIMPLE_MESSAGE, Buffer.from([]));
+  }));
 });
 
-addAsyncTest('execute 1x store contract', async() =>{ await evm[0].execute(SIMPLE_MESSAGE, SINGLE_STORE_CONTRACT); });
-addAsyncTest('parallel execute 1x store contract', async() =>{ 
-    await Promise.all(evm.map(e => {
-        e.execute(SIMPLE_MESSAGE, SINGLE_STORE_CONTRACT);
-    }));
+addAsyncTest('execute 1x store contract', async () => {
+  await evm[0].execute(SIMPLE_MESSAGE, SINGLE_STORE_CONTRACT);
+});
+addAsyncTest('parallel execute 1x store contract', async () => {
+  await Promise.all(evm.map(e => {
+    e.execute(SIMPLE_MESSAGE, SINGLE_STORE_CONTRACT);
+  }));
 });
 
-addAsyncTest('execute 10x store contract', async() =>{ await evm[0].execute(SIMPLE_MESSAGE, TEN_STORE_CONTRACT); });
-addAsyncTest('parallel execute 10x store contract', async() =>{ 
-    await Promise.all(evm.map(e => {
-        e.execute(SIMPLE_MESSAGE, TEN_STORE_CONTRACT);
-    }));
+addAsyncTest('execute 10x store contract', async () => {
+  await evm[0].execute(SIMPLE_MESSAGE, TEN_STORE_CONTRACT);
+});
+addAsyncTest('parallel execute 10x store contract', async () => {
+  await Promise.all(evm.map(e => {
+    e.execute(SIMPLE_MESSAGE, TEN_STORE_CONTRACT);
+  }));
 });
 runSuite(suite, 'evmc_execution');

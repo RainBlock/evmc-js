@@ -18,6 +18,7 @@ env:
 cache:
   directories:
    - $HOME/.npm
+   - $HOME/.hunter
 script: npm run test
 before_install: "export CC=gcc-7; export CXX=g++-7"
 before_deploy:

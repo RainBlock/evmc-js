@@ -2,6 +2,8 @@ import 'mocha';
 
 import * as chai from 'chai';
 import * as path from 'path';
+import {performance} from 'perf_hooks';
+import * as process from 'process';
 import * as util from 'util';
 
 import {Evmc, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus} from './evmc';
@@ -166,13 +168,20 @@ class TestEVM extends Evmc {
   }
 }
 
+const getDynamicLibraryExtension = () => {
+  return process.platform === 'win32' ?
+      'dll' :
+      process.platform === 'darwin' ? 'dylib' : 'so';
+};
+
 describe('Try EVM creation', () => {
   let evm: TestEVM;
 
   it('should be created', () => {
     evm = new TestEVM(path.join(
         __dirname,
-        '../libbuild/aleth/libaleth-interpreter/libaleth-interpreter.dylib'));
+        `../libbuild/aleth/libaleth-interpreter/libaleth-interpreter.${
+            getDynamicLibraryExtension()}`));
   });
 
   it('should fail to execute a bad message', async () => {
