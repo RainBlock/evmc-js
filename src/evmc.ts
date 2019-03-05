@@ -253,7 +253,7 @@ interface EvmcBinding {
   createEvmcEvm(path: string, context: EvmJsContext): EvmcHandle;
   executeEvmcEvm(handle: EvmcHandle, parameters: EvmcExecutionParameters):
       EvmcResult;
-  releaseEvmcEvm(handle : EvmcHandle) : void;
+  releaseEvmcEvm(handle: EvmcHandle): void;
 }
 
 /** Private interface to pass as callback to the EVM binding. */
@@ -451,11 +451,13 @@ export abstract class Evmc {
     if (this.released) {
       throw new Error('EVM has been released!');
     }
-    return evmc.executeEvmcEvm(
-        this._evm, {revision, message, code });
+    return evmc.executeEvmcEvm(this._evm, {revision, message, code});
   }
 
-  /** Releases all resources from this EVM. Once released, you may no longer call execute. */
+  /**
+   * Releases all resources from this EVM. Once released, you may no longer
+   * call execute.
+   */
   release() {
     evmc.releaseEvmcEvm(this._evm);
     this.released = true;

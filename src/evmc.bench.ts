@@ -16,33 +16,35 @@ interface BenchmarkRun {
 // This file contains the benchmark test suite. It includes the benchmark and
 // some lightweight boilerplate code for running benchmark.js. To
 // run the benchmarks, execute `npm run benchmark` from the package directory.
-const runSuite = (suite: benchmark.Suite, name: string, async = false) : Promise<void> => {
-  return new Promise((resolve, reject) => {
-    console.log(`\nRunning ${name}...`);
-    // Reporter for each benchmark
-    suite.on('cycle', (event: benchmark.Event) => {
-        const benchmarkRun: BenchmarkRun = event.target as BenchmarkRun;
-        const stats = benchmarkRun.stats as benchmark.Stats;
-        const meanInNanos = (stats.mean * 1000000000).toFixed(2);
-        const stdDevInNanos = (stats.deviation * 1000000000).toFixed(3);
-        const runs = stats.sample.length;
-        const ops = benchmarkRun.hz.toFixed(benchmarkRun.hz < 100 ? 2 : 0);
-        const err = stats.rme.toFixed(2);
+const runSuite =
+    (suite: benchmark.Suite, name: string, async = false): Promise<void> => {
+      return new Promise((resolve, reject) => {
+        console.log(`\nRunning ${name}...`);
+        // Reporter for each benchmark
+        suite.on('cycle', (event: benchmark.Event) => {
+          const benchmarkRun: BenchmarkRun = event.target as BenchmarkRun;
+          const stats = benchmarkRun.stats as benchmark.Stats;
+          const meanInNanos = (stats.mean * 1000000000).toFixed(2);
+          const stdDevInNanos = (stats.deviation * 1000000000).toFixed(3);
+          const runs = stats.sample.length;
+          const ops = benchmarkRun.hz.toFixed(benchmarkRun.hz < 100 ? 2 : 0);
+          const err = stats.rme.toFixed(2);
 
-        console.log(`${benchmarkRun.name}: ${ops}±${err}% ops/s ${meanInNanos}±${
-            stdDevInNanos} ns/op (${runs} run${runs === 0 ? '' : 's'})`);
-    });
+          console.log(
+              `${benchmarkRun.name}: ${ops}±${err}% ops/s ${meanInNanos}±${
+                  stdDevInNanos} ns/op (${runs} run${runs === 0 ? '' : 's'})`);
+        });
 
-    suite.on('complete', () => {
-        console.log(
-            'Fastest is ' +
-            suite.filter('fastest').map('name' as unknown as Function));
-        resolve();
-    });
-    // Runs the test suite
-    suite.run({async});
-    });
-};
+        suite.on('complete', () => {
+          console.log(
+              'Fastest is ' +
+              suite.filter('fastest').map('name' as unknown as Function));
+          resolve();
+        });
+        // Runs the test suite
+        suite.run({async});
+      });
+    };
 
 interface BenchmarkDeferrable {
   resolve: () => void;
@@ -315,9 +317,11 @@ addAsyncTest('parallel execute 10x store contract', async () => {
   }));
 });
 
-const evmExeuctionRun = async() => {
-    await runSuite(suite, 'evmc_execution');
-    evm.map(e => { e.release(); });
+const evmExeuctionRun = async () => {
+  await runSuite(suite, 'evmc_execution');
+  evm.map(e => {
+    e.release();
+  });
 };
 
 evmExeuctionRun();
