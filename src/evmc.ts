@@ -264,7 +264,7 @@ interface EvmJsContext {
       Promise<EvmcStorageStatus>|EvmcStorageStatus;
   getBalance(account: bigint): Promise<bigint>|bigint;
   getCodeSize(account: bigint): Promise<bigint>|bigint;
-  getCodeHash(account: bigint) : Promise<bigint>|bigint;
+  getCodeHash(account: bigint): Promise<bigint>|bigint;
   copyCode(account: bigint, offset: number, length: number):
       Promise<Buffer>|Buffer;
   selfDestruct(account: bigint, beneficiary: bigint): Promise<void>|void;
@@ -365,12 +365,13 @@ export abstract class Evmc {
   /**
    * Get code hash callback function.
    *
-   * This callback function is used by a VM to get the keccak256 hash of the code stored
-   * in the account at the given address. For existing accounts not having a code, this
-   * function returns keccak256 hash of empty data.
+   * This callback function is used by a VM to get the keccak256 hash of the
+   * code stored in the account at the given address. For existing accounts not
+   * having a code, this function returns keccak256 hash of empty data.
    *
    * @param address  The address of the account.
-   * @return         The hash of the code in the account or null bytes if the account does not exist.
+   * @return         The hash of the code in the account or null bytes if the
+   * account does not exist.
    */
   abstract getCodeHash(address: bigint): Promise<bigint>|bigint;
 

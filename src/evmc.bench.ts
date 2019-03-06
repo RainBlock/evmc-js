@@ -94,7 +94,7 @@ const BALANCE_BALANCE = 0xabcdef123455n;
 const BALANCE_CODESIZE = 24023n;
 const BALANCE_CODEHASH =
     0xecd99ffdcb9df33c9ca049ed55f74447201e3774684815bc590354427595232bn;
-    
+
 const BLOCK_NUMBER = 0x10001000n;
 const BLOCK_COINBASE = 0x2fab01632ab26a6349aedd19f5f8e4bbd477718n;
 const BLOCK_TIMESTAMP = 1551402771n;
@@ -191,11 +191,11 @@ class TestEVM extends Evmc {
             account.toString(16)} beneficairy:${beneficiary.toString(16)})`);
   }
 
-  async getCodeHash(account : bigint) {
+  async getCodeHash(account: bigint) {
     if (account === BALANCE_ACCOUNT) {
-        return BALANCE_CODEHASH;
-      }
-      throw new Error(`Invalid code hash account (got ${account.toString(16)})`);
+      return BALANCE_CODEHASH;
+    }
+    throw new Error(`Invalid code hash account (got ${account.toString(16)})`);
   }
 
   async call(message: EvmcMessage) {

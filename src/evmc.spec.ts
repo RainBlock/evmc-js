@@ -109,11 +109,11 @@ class TestEVM extends Evmc {
     throw new Error(`Invalid code size account (got ${account.toString(16)})`);
   }
 
-  async getCodeHash(account : bigint) {
+  async getCodeHash(account: bigint) {
     if (account === BALANCE_ACCOUNT) {
-        return BALANCE_CODEHASH;
-      }
-      throw new Error(`Invalid code hash account (got ${account.toString(16)})`);
+      return BALANCE_CODEHASH;
+    }
+    throw new Error(`Invalid code hash account (got ${account.toString(16)})`);
   }
 
   async copyCode(account: bigint, offset: number, length: number) {
@@ -388,7 +388,8 @@ describe('Try EVM creation', () => {
             data(0x3F)
             success:
             stop
-          `), 'hex'));
+          `),
+            'hex'));
     result.statusCode.should.equal(EvmcStatusCode.EVMC_SUCCESS);
   });
 
@@ -413,5 +414,4 @@ describe('Try EVM creation', () => {
     evm.release();
     evm.released.should.be.true;
   });
-
 });
