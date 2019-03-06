@@ -1,4 +1,4 @@
-# EVMC bindings for node.js
+# ☔️🔗 EVMC bindings for node.js
 
 This project includes node.js bindings for the [Ethereum VM Connector API](https://github.com/ethereum/evmc). It is capable of loading EVM implementations such as [aleth-interpreter](https://github.com/ethereum/aleth/tree/master/libaleth-interpreter), [evmjit](https://github.com/ethereum/evmjit) and [Hera](https://github.com/ewasm/hera) and enables interop with javascript code.
 
