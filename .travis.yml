@@ -10,6 +10,7 @@ addons:
     packages:
     - g++-7
     - gcc-7
+    - cmake
 cache:
   directories:
   - "$HOME/.npm"
