@@ -78,7 +78,7 @@
 
 <span class="hljs-comment">// and so on for all the callbacks...</span>
 }</code></pre>
-				<p>Callbacks can be asynchronous (i.e., return a <code>Promise</code>), or synchronous. See the documentation for full details on the API you need to implement.</p>
+				<p>Callbacks can be asynchronous (i.e., return a <code>Promise</code>), or synchronous. See the <a href="https://rainblock.github.io/evmc-js/">documentation</a> for full details on the API you need to implement.</p>
 				<p>When you&#39;re ready to execute, you instantiate a instance of your <code>Evmc</code> class and call the <code>execute</code> function using the message and code you with to execute, as below:</p>
 				<pre><code class="language-typescript"><span class="hljs-keyword">const</span> evm = <span class="hljs-keyword">new</span> MyEVM(evmPath);
 <span class="hljs-keyword">const</span> result = <span class="hljs-keyword">await</span> evm.execute(message, code));</code></pre>
