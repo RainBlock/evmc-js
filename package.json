@@ -1,8 +1,9 @@
 {
   "name": "evmc",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Ethereum EVMC bindings for node.js",
   "main": "dist/evmc.js",
+  "types": "dist/evmc.d.ts",
   "scripts": {
     "benchmark": "node -r ts-node/register src/evmc.bench.ts",
     "test": "git submodule update --init --recursive; mkdir -p libbuild; cd libbuild;mkdir aleth; cd aleth; cmake ../../aleth -DALETH_INTERPRETER_SHARED=true -DTOOLS=false -DTESTS=false; cd libaleth-interpreter; cmake --build .; cd ..; cd ..;cd ..;mocha -r ts-node/register src/*.spec.ts --timeout 40000",
