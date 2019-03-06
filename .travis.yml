@@ -3,24 +3,20 @@ language: node_js
 node_js:
 - node
 - '11'
-sudo : false
+sudo: false
 addons:
   apt:
     sources:
-      - ubuntu-toolchain-r-test
+    - ubuntu-toolchain-r-test
     packages:
-      - g++-7
-      - gcc-7
-env:
-  global:
-  - secure: SQDlqZZTkrbRW/wYLPgEwFQpkSrs65MiF0JgO+cwSCAG1m0c7EuBTzvttAXzKK+coZXjd2+QJcAOBi6YUP84OdSf31PojIy4/SLuZxuFQa0sGey+8oSDqgMntpSthO9nom0s6u2vB61IVfcRVIUNv5L3J5i5ZIGlKGgC2MIBzsnhx0L//eyh/bLszR27ajCT7RG+pnqpk010eaDtRabOJTtO0C2kbBQoW2SvJIisDsRj5zqVyl03pZJQQAJeseiNlLokucrgitDWENE+tEJ2w1x1yl+901tgU+BIi4iLQTezcSAxnF149U/Nof7LpCba+1Y+PPh1SRpO4100CT6O46qW0O1keVfTmZL/R3ghBM6H0AtV1s48k/XCpHV9CGwxjBHoCN1kKvSO9B1BJuAdlmgobOEdze+X81nilSBhBmYMI1XPLbXqTo2ImfaFeDzveuPJH6+HMCc+8sDlhgLcrOiteAsY8RsI0ngBkutsWWv7QcRq29e4VX2eBy0j1VJZNf0FPAcKpWF8eIaPw7Z0CuWMs2hM0v0ns58jDcOL+1k4kKyJ10OOmANqNX+NZYRJJ05dd/VMrlh37teARI64PFSG6eIoCniW0GtrUcpX4KhqpaRSUDpsKvncXNdNydumMyMQjeQqyHqahvIE2ONVXXELD2T/EV6TpazDR5KSSo0=
-  - secure: ZwKAlaNZ8liLknkAfFN+TztrILi8Q06AknHUj0Zd+9PjzD5n6tpzp5g1nE0MEvF9bqkGkwf6vwWJVKcSXWM9J4a2pfoLe9wsVcjq+AkmWnZG0zV26ie3UPoa8d/PezRtxz+4vErvQcOqnESVPJAqeWCt0fH1WvnEcjaY3BYyyDbWwAPamWr/v9c4ZLKxJqJmgtczMCrRahd6Dz+HGGJ9BehhOXtse+rT5qFI6w2SMXaisDzk2twMu0fK1I66G2IsesIKErPigCeEPahsP2yu831+S18YvxJtao7tXpluMBf+RNhD9eI1evUu6IxpF419ANDJ7BpJ8uGfRVzIz9kQIAmcy/1s7g3otT633XngUfNYDisUeLJ39plclOHw+sVeLL49Xa9k+/U0CzlOThNlCj0hY2uJW3Ot9NjvKDjdR/UkgEBCl6nIDAnRQk9xSJ4ws1f9Yp5CgEXcXvu7077i6O8vG7+k08qHDSkxEEwQjB2PwjhcPfg9ieAwafblM3szYwzblL4UpROp/L/XmmzjR/cOVrS93RIpeLqDr2CCMKGd0GoOFtDse7u43SJMIAZ+O5DNtNpqIQ22V13p4P3L2C1RV3cjE55luEYVR1JZ7AzaxD+hZu2zcU2301MuSgFLTKMEu43HV1tPJ6QtCcSf+kH/LK/TPfTLveW23xkkZM0=
+    - g++-7
+    - gcc-7
 cache:
   directories:
-   - $HOME/.npm
-   - $HOME/.hunter
+  - "$HOME/.npm"
+  - "$HOME/.hunter"
 script: npm run test
-before_install: "export CC=gcc-7; export CXX=g++-7"
+before_install: export CC=gcc-7; export CXX=g++-7
 before_deploy:
 - npm pack
 deploy:
@@ -32,7 +28,6 @@ deploy:
   on:
     branch: master
     node: '11'
-    condition: "$TEST_SUITE = test:node"
     tags: true
 - provider: npm
   api_key: "$NPM_TOKEN"
@@ -41,5 +36,17 @@ deploy:
   on:
     branch: master
     node: '11'
-    condition: "$TEST_SUITE = test:node"
     tags: true
+- provider: pages
+  skip-cleanup: true
+  github-token: "$GITHUB_TOKEN"
+  keep-history: true
+  local_dir: docs
+  committer-from-gh: true
+  on:
+    branch: master
+    node: '11'
+env:
+  global:
+  - secure: RYVZcjQTX4Y8nkLvziVacPU2lKTRBrr3cFoVXk3JcH8xlLxOb9RUpDx6mqvtuvIbi3wa5ndAqKw+iAfwyriobgT37xtU3O6nZvTDFqkT84sY7+VP/ln8MtxObEezC5+3THNyL1BCnO2IyVSF328wvj3nH3vHKQqMdjJCINIC0lgt8Q1y4bhKgwZc9V3e/qHWU/YaTnPPVVxi6T3V+uS0xTFFQT5FdwQc65OrnC/4V0j2NEKb2WwzvpG9UjLacjLR8k3CVPYs/bjZEakmi2yyetQsbW4HcsHJB4/Utj1oiFI6O8e5D+IKjJRZXp1IZG0bFVMiOYDJgMlE73o5j3cRjQjNUvxZORPOgofqWrF8sySsERHWxn3HKRYx99H29XUMwnNmo+55MncdLURcA+M1yd9jwgVBJ7NE833iPX4Zu7pmPOlDeC530wNXu3GFWNGeBhvZNGQQtmXvE7rmYv9MQNpHn0t6SRoxmDyBLNsyKve+ATm7QiMQ1aOrpF3Qdw6uGop5QTbuMeJ7jvjKV9Y5vZFDurUev4j85kg8qhVwX2V7uz+eOQ95Ea6+vLbUnLkdUSx6tNLk1MsvZllXnGJDNtTtg5mVHePkhMCz8M2pBYVmBtnUed/+vfjx+s7r5E+MwPyfHtmW87h2viutau+KENzzHxUupT883V6Pfx9nvlA=
+  - secure: Ms1kR9gw08pAjT38Uszk34mwnHFX895TRt5n96ZxQRlOMmWTpNqho4TliP6Bs4pJ2bFNz12W1weaxtOBtt3+0D+64UzFsqnRFn9uiw3CVuD0gdRxd9fMz0/kgdlUdaiyTgsf4nrQPZrS3YYj0erZLYYHwnDnciZ8cGWxU8rG1S4cFt6qSwiyGaQXC6OJwqPGfqiXUG9ApT5hw7CsgEeXGmBy6peY2LOs0EXcHVtrW4+pr6duxw36zB1GGBqdvheGQj9qwHHlG16iPMtj00rQ/0wuPGJHoq8kevJWH7ZCbPvjWKe55Jx6bKEmXyF+CKWs6psbWErn92VFaJqhXAoBnwuva4uvd8jWGudn8rG3TTKtkXzdwitS1H2WBsMI8LREDEskqRWMuA6BVg8h/IJbznd9Dd94I3QjeWdL5g1IXH72U8b0m0StmYQbghAGvQR+VsI5D3Lb4bwCz1xllaj68D4MvYveYmpnIhnGe7QGk4ZTFxz/R9pDPrMVsBueAqGqcTXt2RACNOOceyM4lsaHU4i4AtOidzVyMu5AAqJVYSS8BZwziFmkuJB83kthkAnnFYr4NFda6mNIvYhqADyE/OgI4Ka/NH476Ka13gLUChejNGMoZkEOn1vab5ae0J5D8DtVu3FUrkoOCQvKloDZRU1wH+IP69iQQQaFSPeEYUU=
