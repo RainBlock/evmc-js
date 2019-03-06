@@ -2,7 +2,6 @@ import 'mocha';
 
 import * as chai from 'chai';
 import * as path from 'path';
-import {performance} from 'perf_hooks';
 import * as process from 'process';
 import * as util from 'util';
 
