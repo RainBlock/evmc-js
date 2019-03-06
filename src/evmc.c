@@ -23,6 +23,7 @@ struct evmc_js_context
     napi_threadsafe_function set_storage_fn;
     napi_threadsafe_function get_balance_fn;
     napi_threadsafe_function get_code_size_fn;
+    napi_threadsafe_function get_code_hash_fn;
     napi_threadsafe_function copy_code_fn;
     napi_threadsafe_function selfdestruct_fn;
     napi_threadsafe_function call_fn;
@@ -553,6 +554,92 @@ size_t get_code_size(struct evmc_js_context* context,
     return callinfo.result;
 }
 
+
+
+struct js_get_code_hash_call {
+  uv_sem_t sem;
+  const evmc_address* address;
+  evmc_bytes32 result;
+};
+
+
+napi_value get_code_hash_js_promise_success(napi_env env, napi_callback_info info) {
+    napi_value argv[1];
+    napi_status status;
+    struct js_get_code_hash_call* data;
+    size_t argc = 1;
+
+    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
+    assert(status == napi_ok);
+
+    get_evmc_bytes32_from_bigint(env, argv[0], &data->result);
+    uv_sem_post(&data->sem);
+
+    return NULL;
+}
+
+void get_code_hash_js(napi_env env, napi_value js_callback, void* context, struct js_get_code_hash_call* data) {
+    napi_status status;
+    napi_value global;
+
+    status = napi_get_global(env, &global);
+    assert(status == napi_ok);
+
+    napi_value values[1];
+
+    create_bigint_from_evmc_address(env, data->address, &values[0]);
+
+    napi_value result;
+    status = napi_call_function(env, global, js_callback, 1, values, &result);
+    assert(status == napi_ok);
+
+    bool isPromise = false;
+    status = napi_is_promise(env, result, &isPromise);
+    assert(status == napi_ok);
+
+    if (!isPromise) {
+      get_evmc_bytes32_from_bigint(env, result, &data->result);
+      uv_sem_post(&data->sem);
+    } else {
+      napi_value then_callback;
+      status = napi_get_named_property(env, result, "then", &then_callback);
+      assert(status == napi_ok);
+
+      napi_value success_callback;
+      status = napi_create_function(env, NULL, 0, get_code_hash_js_promise_success, data, &success_callback);
+      assert(status == napi_ok);
+
+      napi_value args[1];
+      args[0] = success_callback;
+      status = napi_call_function(env, result, then_callback, 1, args, NULL);
+      assert(status == napi_ok);
+    }
+}
+
+evmc_bytes32 get_code_hash(struct evmc_js_context* context,
+  const evmc_address* address) {
+    napi_status status;
+
+    struct js_get_code_hash_call callinfo;
+    callinfo.address = address;
+  
+    status = napi_acquire_threadsafe_function(context->get_code_hash_fn);
+    assert(status == napi_ok);
+
+    int uv_status;
+    uv_status = uv_sem_init(&callinfo.sem, 0);
+    assert(uv_status == 0);
+
+    status = napi_call_threadsafe_function(context->get_code_hash_fn, &callinfo, napi_tsfn_blocking); 
+    assert(status == napi_ok);
+
+    uv_sem_wait(&callinfo.sem);
+
+    status = napi_release_threadsafe_function(context->get_code_hash_fn, napi_tsfn_release);
+    assert(status == napi_ok);
+
+    return callinfo.result;
+}
 
 struct js_copy_code_call {
   uv_sem_t sem;
@@ -1368,6 +1455,13 @@ void create_callbacks_from_context(napi_env env, struct evmc_js_context* ctx, na
   status = napi_create_threadsafe_function(env, get_code_size_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) get_code_size_js, &ctx->get_code_size_fn);
   assert(status == napi_ok);
 
+  napi_value get_code_hash_callback;
+  status = napi_get_named_property(env, node_context, "getCodeHash", &get_code_hash_callback);
+  assert(status == napi_ok); 
+
+  status = napi_create_threadsafe_function(env, get_code_hash_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) get_code_hash_js, &ctx->get_code_hash_fn);
+  assert(status == napi_ok);
+
   napi_value copy_code_callback;
   status = napi_get_named_property(env, node_context, "copyCode", &copy_code_callback);
   assert(status == napi_ok); 
@@ -1434,6 +1528,9 @@ void release_callbacks_from_context(napi_env env, struct evmc_js_context* ctx) {
   assert(status == napi_ok);
 
   status = napi_release_threadsafe_function(ctx->get_code_size_fn, napi_tsfn_release);
+  assert(status == napi_ok);
+
+  status = napi_release_threadsafe_function(ctx->get_code_hash_fn, napi_tsfn_release);
   assert(status == napi_ok);
 
   status = napi_release_threadsafe_function(ctx->copy_code_fn, napi_tsfn_release);
@@ -1714,6 +1811,7 @@ napi_value init_all (napi_env env, napi_value exports) {
   host_interface.set_storage = (evmc_set_storage_fn) set_storage;
   host_interface.get_balance = (evmc_get_balance_fn) get_balance;
   host_interface.get_code_size = (evmc_get_code_size_fn) get_code_size;
+  host_interface.get_code_hash = (evmc_get_code_hash_fn) get_code_hash;
   host_interface.copy_code = (evmc_copy_code_fn) copy_code;
   host_interface.selfdestruct = (evmc_selfdestruct_fn) selfdestruct;
   host_interface.call = (evmc_call_fn) call;

@@ -28,6 +28,8 @@ const STORAGE_VALUE = 0x05n;
 const BALANCE_ACCOUNT = 0x174201554d57715a2382555c6dd9028166ab20ean;
 const BALANCE_BALANCE = 0xabcdef123455n;
 const BALANCE_CODESIZE = 24023n;
+const BALANCE_CODEHASH =
+    0xecd99ffdcb9df33c9ca049ed55f74447201e3774684815bc590354427595232bn;
 
 const BLOCK_NUMBER = 0x10001000n;
 const BLOCK_COINBASE = 0x2fab01632ab26a6349aedd19f5f8e4bbd477718n;
@@ -106,6 +108,13 @@ class TestEVM extends Evmc {
       return BALANCE_CODESIZE;
     }
     throw new Error(`Invalid code size account (got ${account.toString(16)})`);
+  }
+
+  async getCodeHash(account : bigint) {
+    if (account === BALANCE_ACCOUNT) {
+        return BALANCE_CODEHASH;
+      }
+      throw new Error(`Invalid code hash account (got ${account.toString(16)})`);
   }
 
   async copyCode(account: bigint, offset: number, length: number) {
@@ -367,6 +376,24 @@ describe('Try EVM creation', () => {
     result.statusCode.should.equal(EvmcStatusCode.EVMC_SUCCESS);
   });
 
+  it('should successfully get a code hash call', async () => {
+    const result = await evm.execute(
+        EVM_MESSAGE,
+        Buffer.from(
+            evmasm.compile(`
+            data(0x73)
+            data(0x${BALANCE_ACCOUNT.toString(16)})
+            data(0x3F)
+            mstore(0)
+            jumpi(success, eq(mload(0), 0x${BALANCE_CODEHASH.toString(16)}))
+            data(0x3F)
+            success:
+            stop
+          `), 'hex'));
+    result.statusCode.should.equal(EvmcStatusCode.EVMC_SUCCESS);
+  });
+
+
   it('should successfully call', async () => {
     const result = await evm.execute(
         EVM_MESSAGE,
@@ -382,4 +409,10 @@ describe('Try EVM creation', () => {
             'hex'));
     result.statusCode.should.equal(EvmcStatusCode.EVMC_SUCCESS);
   });
+
+  it('should destroy the EVM', async () => {
+    evm.release();
+    evm.released.should.be.true;
+  });
+
 });

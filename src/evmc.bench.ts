@@ -92,7 +92,9 @@ const STORAGE_VALUE = 0x05n;
 const BALANCE_ACCOUNT = 0x174201554d57715a2382555c6dd9028166ab20ean;
 const BALANCE_BALANCE = 0xabcdef123455n;
 const BALANCE_CODESIZE = 24023n;
-
+const BALANCE_CODEHASH =
+    0xecd99ffdcb9df33c9ca049ed55f74447201e3774684815bc590354427595232bn;
+    
 const BLOCK_NUMBER = 0x10001000n;
 const BLOCK_COINBASE = 0x2fab01632ab26a6349aedd19f5f8e4bbd477718n;
 const BLOCK_TIMESTAMP = 1551402771n;
@@ -187,6 +189,13 @@ class TestEVM extends Evmc {
     throw new Error(
         `Self destruct on unexpected origin or beneficary (origin: ${
             account.toString(16)} beneficairy:${beneficiary.toString(16)})`);
+  }
+
+  async getCodeHash(account : bigint) {
+    if (account === BALANCE_ACCOUNT) {
+        return BALANCE_CODEHASH;
+      }
+      throw new Error(`Invalid code hash account (got ${account.toString(16)})`);
   }
 
   async call(message: EvmcMessage) {
