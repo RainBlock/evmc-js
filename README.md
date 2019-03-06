@@ -24,7 +24,7 @@ async getAccountExists(account: bigint) {
 // and so on for all the callbacks...
 }
 ```
-Callbacks can be asynchronous (i.e., return a `Promise`), or synchronous. See the documentation for full details on the API you need to implement.
+Callbacks can be asynchronous (i.e., return a `Promise`), or synchronous. See the [documentation](https://rainblock.github.io/evmc-js/) for full details on the API you need to implement.
 
 When you're ready to execute, you instantiate a instance of your `Evmc` class and call the `execute` function using the message and code you with to execute, as below:
 
