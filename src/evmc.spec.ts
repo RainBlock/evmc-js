@@ -45,8 +45,9 @@ const CALL_ACCOUNT = 0x44fD3AB8381cC3d14AFa7c4aF7Fd13CdC65026E1n;
 const CODE_INPUT_DATA = Buffer.from(
     'ccd99eedcb9df33c9ca049ed55f74447201e3774684815bc590354427595232b', 'hex');
 const CODE_OUTPUT_DATA = Buffer.from(
-    '0xb745858cc23a311a303b43f18813d7331a257a817201576533298ffbe3809b32',
+    'b745858cc23a311a303b43f18813d7331a257a817201576533298ffbe3809b32',
     'hex');
+const CREATE_OUTPUT_ACCOUNT = 0xA643e67B31F2E0A7672FD87d3faa28eAa845E311n;
 
 const BLOCKHASH_NUM = BLOCK_NUMBER - 4n;
 const BLOCKHASH_HASH =
@@ -139,7 +140,7 @@ class TestEVM extends Evmc {
         statusCode: EvmcStatusCode.EVMC_SUCCESS,
         gasLeft: 10000n,
         outputData: CODE_OUTPUT_DATA,
-        createAddress: 0n
+        createAddress: CREATE_OUTPUT_ACCOUNT
       };
     }
     throw new Error(`Unexpected input message ${util.inspect(message)}`);
@@ -399,9 +400,24 @@ describe('Try EVM creation', () => {
         EVM_MESSAGE,
         Buffer.from(
             evmasm.compile(`
-            mstore(0, 0x${CODE_INPUT_DATA.toString('hex')});
+            mstore(0, 0x${CODE_INPUT_DATA.toString('hex')})
             delegatecall(10000, 0x${CALL_ACCOUNT}, 0, 32, 32, 32)
             jumpi(success, eq(mload(32), 0x${CODE_OUTPUT_DATA.toString('hex')}))
+            data(0xFE) // Invalid Opcode
+            success:
+            stop
+          `),
+            'hex'));
+    result.statusCode.should.equal(EvmcStatusCode.EVMC_SUCCESS);
+  });
+
+  it('should successfully create', async () => {
+    const result = await evm.execute(
+        EVM_MESSAGE,
+        Buffer.from(
+            evmasm.compile(`
+            mstore(0, 0x${CODE_INPUT_DATA.toString('hex')})
+            jumpi(success, eq(create(10000, 0, 32), 0x${CREATE_OUTPUT_ACCOUNT.toString(16)}))
             data(0xFE) // Invalid Opcode
             success:
             stop

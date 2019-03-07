@@ -845,7 +845,7 @@ void selfdestruct(struct evmc_js_context* context,
 struct js_call_call {
   uv_sem_t sem;
   const struct evmc_message* msg;
-  struct evmc_result result;;
+  struct evmc_result* result;
 };
 
 void call_free_result(const struct evmc_result* result) {
@@ -869,13 +869,13 @@ napi_value call_js_promise_success(napi_env env, napi_callback_info info) {
     int64_t int_status_code;
     status = napi_get_value_int64(env, node_status_code, &int_status_code);
     assert(status == napi_ok);
-    data->result.status_code = (enum evmc_status_code) int_status_code;
+    data->result->status_code = (enum evmc_status_code) int_status_code;
 
     napi_value node_gas_left;
     status = napi_get_named_property(env, argv[0], "gasLeft", &node_gas_left);
     assert(status == napi_ok);
     bool gasLeftLossless = true;
-    status = napi_get_value_bigint_int64(env, node_gas_left, &data->result.gas_left, &gasLeftLossless);
+    status = napi_get_value_bigint_int64(env, node_gas_left, &data->result->gas_left, &gasLeftLossless);
     assert(status == napi_ok);
 
     napi_value node_output_data;
@@ -885,17 +885,18 @@ napi_value call_js_promise_success(napi_env env, napi_callback_info info) {
     size_t outputData_size;
     status = napi_get_buffer_info(env, node_output_data, (void**) &outputData, &outputData_size);
     assert(status == napi_ok);
-    
-    data->result.output_size = outputData_size;
+
+    data->result->output_size = outputData_size;
     if (outputData_size > 0) {
-      data->result.output_data = (uint8_t*) malloc(outputData_size);
-      data->result.release = call_free_result;
+      data->result->output_data = (uint8_t*) malloc(outputData_size);
+      memcpy((void*)data->result->output_data, outputData, outputData_size);
+      data->result->release = call_free_result;
     }
 
     napi_value node_create_address;
     status = napi_get_named_property(env, argv[0], "createAddress", &node_create_address);
     assert(status == napi_ok);
-    get_evmc_address_from_bigint(env, node_create_address, &data->result.create_address);
+    get_evmc_address_from_bigint(env, node_create_address, &data->result->create_address);
 
     uv_sem_post(&data->sem);
     return NULL;
@@ -950,7 +951,8 @@ void call_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, 
 
     if (data->msg->input_size != 0) {
       napi_value node_input;
-      status = napi_create_buffer(env, data->msg->input_size, (void**) data->msg->input_data, &node_input);
+      void* input_node_buf;
+      status = napi_create_buffer_copy(env, data->msg->input_size, data->msg->input_data, &input_node_buf, &node_input);
       assert(status == napi_ok);
       status = napi_set_named_property(env, values[0], "inputData", node_input);
       assert(status == napi_ok);
@@ -976,13 +978,13 @@ void call_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, 
       int64_t int_status_code;
       status = napi_get_value_int64(env, node_status_code, &int_status_code);
       assert(status == napi_ok);
-      data->result.status_code = (enum evmc_status_code) int_status_code;
+      data->result->status_code = (enum evmc_status_code) int_status_code;
 
       napi_value node_gas_left;
       status = napi_get_named_property(env, result, "gasLeft", &node_gas_left);
       assert(status == napi_ok);
       bool gasLeftLossless = true;
-      status = napi_get_value_bigint_int64(env, node_gas_left, &data->result.gas_left, &gasLeftLossless);
+      status = napi_get_value_bigint_int64(env, node_gas_left, &data->result->gas_left, &gasLeftLossless);
       assert(status == napi_ok);
 
       napi_value node_output_data;
@@ -993,16 +995,17 @@ void call_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, 
       status = napi_get_buffer_info(env, node_output_data, (void**) &outputData, &outputData_size);
       assert(status == napi_ok);
       
-      data->result.output_size = outputData_size;
+      data->result->output_size = outputData_size;
       if (outputData_size > 0) {
-        data->result.output_data = (uint8_t*) malloc(outputData_size);
-        data->result.release = call_free_result;
+        data->result->output_data = (uint8_t*) malloc(outputData_size);
+        memcpy((void*)data->result->output_data, outputData, outputData_size);
+        data->result->release = call_free_result;
       }
 
       napi_value node_create_address;
       status = napi_get_named_property(env, result, "createAddress", &node_create_address);
       assert(status == napi_ok);
-      get_evmc_address_from_bigint(env, node_create_address, &data->result.create_address);
+      get_evmc_address_from_bigint(env, node_create_address, &data->result->create_address);
 
       uv_sem_post(&data->sem);
     } else {
@@ -1023,10 +1026,17 @@ void call_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, 
 
 struct evmc_result call(struct evmc_js_context* context,
   const struct evmc_message* msg) {
+    struct evmc_result result;
+    result.status_code = 0;
+    result.output_data = NULL;
+    result.output_size = 0;
+    result.gas_left = 0;
+    result.release = NULL;
+
     napi_status status;
-    
     struct js_call_call callinfo;
     callinfo.msg = msg;
+    callinfo.result = &result;
   
     status = napi_acquire_threadsafe_function(context->call_fn);
     assert(status == napi_ok);
@@ -1039,11 +1049,11 @@ struct evmc_result call(struct evmc_js_context* context,
     assert(status == napi_ok);
 
     uv_sem_wait(&callinfo.sem);
-
+    
     status = napi_release_threadsafe_function(context->call_fn, napi_tsfn_release);
     assert(status == napi_ok);
 
-    return callinfo.result;
+    return result;
 }
 
 
@@ -1605,7 +1615,7 @@ void execute_done(uv_work_t* work, int status) {
 void execute(uv_work_t* work) {
   struct js_execution_context* data = (struct js_execution_context*) work->data;
   data->result = data->context->instance->execute(data->context->instance, (struct evmc_context*) data->context, data->revision, &data->message, data->code, data->code_size);
-  if (data->code != NULL) {
+  if (data->code_size != 0) {
     free(data->code);
   }
   if (data->message.input_size != 0) {
@@ -1713,8 +1723,10 @@ napi_value evmc_execute_evm(napi_env env, napi_callback_info info) {
   assert(status == napi_ok);
 
   js_ctx->code_size = code_size;
-  js_ctx->code = (uint8_t*) malloc(code_size);
-  memcpy(js_ctx->code, code, code_size);
+  if (code_size > 0) {
+    js_ctx->code = (uint8_t*) malloc(code_size);
+    memcpy(js_ctx->code, code, code_size);
+  }
 
   status = napi_create_promise(env, &js_ctx->deferred, &js_ctx->promise);
   assert(status == napi_ok);
