@@ -250,7 +250,7 @@ export interface EvmcTxContext {
 
 /** Private interface to interact with the EVM binding. */
 interface EvmcBinding {
-  createEvmcEvm(path: string, context: EvmJsContext, obj : {}): EvmcHandle;
+  createEvmcEvm(path: string, context: EvmJsContext, obj: {}): EvmcHandle;
   executeEvmcEvm(handle: EvmcHandle, parameters: EvmcExecutionParameters):
       EvmcResult;
   releaseEvmcEvm(handle: EvmcHandle): void;
@@ -280,21 +280,23 @@ export abstract class Evmc {
   released = false;
 
   constructor(path: string) {
-    this._evm = evmc.createEvmcEvm(path, {
-      getAccountExists: this.getAccountExists,
-      getStorage: this.getStorage,
-      setStorage: this.setStorage,
-      getBalance: this.getBalance,
-      getCodeSize: this.getCodeSize,
-      getCodeHash: this.getCodeHash,
-      copyCode: this.copyCode,
-      selfDestruct: this.selfDestruct,
-      getTxContext: this.getTxContext,
-      call: this.call,
-      getBlockHash: this.getBlockHash,
-      emitLog: this.emitLog,
-      executeComplete: () => {}
-    }, this);
+    this._evm = evmc.createEvmcEvm(
+        path, {
+          getAccountExists: this.getAccountExists,
+          getStorage: this.getStorage,
+          setStorage: this.setStorage,
+          getBalance: this.getBalance,
+          getCodeSize: this.getCodeSize,
+          getCodeHash: this.getCodeHash,
+          copyCode: this.copyCode,
+          selfDestruct: this.selfDestruct,
+          getTxContext: this.getTxContext,
+          call: this.call,
+          getBlockHash: this.getBlockHash,
+          emitLog: this.emitLog,
+          executeComplete: () => {}
+        },
+        this);
   }
 
 
