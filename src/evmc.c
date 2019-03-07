@@ -17,6 +17,9 @@ struct evmc_js_context
     /** The EVMC instance. */
     struct evmc_instance* instance;
 
+    /** Reference to evm object */
+    napi_ref object;
+
     /** callbacks **/
     napi_threadsafe_function account_exists_fn;
     napi_threadsafe_function get_storage_fn;
@@ -127,11 +130,11 @@ napi_value set_storage_js_promise_success(napi_env env, napi_callback_info info)
     return NULL;
 }
 
-void set_storage_js(napi_env env, napi_value js_callback, void* context, struct js_set_storage_call* data) {
+void set_storage_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_set_storage_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
 
     napi_value values[3];
@@ -141,7 +144,7 @@ void set_storage_js(napi_env env, napi_value js_callback, void* context, struct 
     create_bigint_from_evmc_bytes32(env, data->value, &values[2]);
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 3, values, &result);
+    status = napi_call_function(env, object, js_callback, 3, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -223,11 +226,11 @@ napi_value get_storage_js_promise_success(napi_env env, napi_callback_info info)
     return NULL;
 }
 
-void get_storage_js(napi_env env, napi_value js_callback, void* context, struct js_storage_call* data) {
+void get_storage_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx,  struct js_storage_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
 
     napi_value values[2];
@@ -236,7 +239,7 @@ void get_storage_js(napi_env env, napi_value js_callback, void* context, struct 
     create_bigint_from_evmc_bytes32(env, data->key, &values[1]);
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 2, values, &result);
+    status = napi_call_function(env, object, js_callback, 2, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -312,11 +315,11 @@ napi_value account_exists_js_promise_success(napi_env env, napi_callback_info in
     return NULL;
 }
 
-void account_exists_js(napi_env env, napi_value js_callback, void* context, struct js_account_exists_call* data) {
+void account_exists_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx,  struct js_account_exists_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
 
     napi_value values[1];
@@ -324,7 +327,7 @@ void account_exists_js(napi_env env, napi_value js_callback, void* context, stru
     create_bigint_from_evmc_address(env, data->address, &values[0]);
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 1, values, &result);
+    status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -400,11 +403,11 @@ napi_value get_balance_js_promise_success(napi_env env, napi_callback_info info)
     return NULL;
 }
 
-void get_balance_js(napi_env env, napi_value js_callback, void* context, struct js_get_balance_call* data) {
+void get_balance_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_get_balance_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
 
     napi_value values[1];
@@ -412,7 +415,7 @@ void get_balance_js(napi_env env, napi_value js_callback, void* context, struct 
     create_bigint_from_evmc_address(env, data->address, &values[0]);
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 1, values, &result);
+    status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -488,11 +491,11 @@ napi_value get_code_size_js_promise_success(napi_env env, napi_callback_info inf
     return NULL;
 }
 
-void get_code_size_js(napi_env env, napi_value js_callback, void* context, struct js_get_code_size_call* data) {
+void get_code_size_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_get_code_size_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
 
     napi_value values[1];
@@ -500,7 +503,7 @@ void get_code_size_js(napi_env env, napi_value js_callback, void* context, struc
     create_bigint_from_evmc_address(env, data->address, &values[0]);
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 1, values, &result);
+    status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -578,11 +581,11 @@ napi_value get_code_hash_js_promise_success(napi_env env, napi_callback_info inf
     return NULL;
 }
 
-void get_code_hash_js(napi_env env, napi_value js_callback, void* context, struct js_get_code_hash_call* data) {
+void get_code_hash_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_get_code_hash_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
 
     napi_value values[1];
@@ -590,7 +593,7 @@ void get_code_hash_js(napi_env env, napi_value js_callback, void* context, struc
     create_bigint_from_evmc_address(env, data->address, &values[0]);
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 1, values, &result);
+    status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -674,11 +677,11 @@ napi_value copy_code_js_promise_success(napi_env env, napi_callback_info info) {
     return NULL;
 }
 
-void copy_code_js(napi_env env, napi_value js_callback, void* context, struct js_copy_code_call* data) {
+void copy_code_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_copy_code_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
 
     napi_value values[3];
@@ -692,7 +695,7 @@ void copy_code_js(napi_env env, napi_value js_callback, void* context, struct js
     assert(status == napi_ok);
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 3, values, &result);
+    status = napi_call_function(env, object, js_callback, 3, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -775,11 +778,11 @@ napi_value selfdestruct_js_promise_success(napi_env env, napi_callback_info info
     return NULL;
 }
 
-void selfdestruct_js(napi_env env, napi_value js_callback, void* context, struct js_selfdestruct_call* data) {
+void selfdestruct_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_selfdestruct_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
 
     napi_value values[2];
@@ -788,7 +791,7 @@ void selfdestruct_js(napi_env env, napi_value js_callback, void* context, struct
     create_bigint_from_evmc_address(env, data->beneficiary, &values[1]);
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 2, values, &result);
+    status = napi_call_function(env, object, js_callback, 2, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -898,11 +901,11 @@ napi_value call_js_promise_success(napi_env env, napi_callback_info info) {
     return NULL;
 }
 
-void call_js(napi_env env, napi_value js_callback, void* context, struct js_call_call* data) {
+void call_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_call_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
 
     napi_value values[1];
@@ -959,7 +962,7 @@ void call_js(napi_env env, napi_value js_callback, void* context, struct js_call
     assert(status == napi_ok);
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 1, values, &result);
+    status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -1104,15 +1107,15 @@ napi_value get_tx_context_js_promise_success(napi_env env, napi_callback_info in
     return NULL;
 }
 
-void get_tx_context_js(napi_env env, napi_value js_callback, void* context, struct js_tx_context_call* data) {
+void get_tx_context_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_tx_context_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 0, NULL, &result);
+    status = napi_call_function(env, object, js_callback, 0, NULL, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -1225,12 +1228,13 @@ napi_value get_block_hash_js_promise_success(napi_env env, napi_callback_info in
     return NULL;
 }
 
-void get_block_hash_js(napi_env env, napi_value js_callback, void* context, struct js_get_block_hash_call* data) {
+void get_block_hash_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_get_block_hash_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
+    
 
     napi_value values[1];
 
@@ -1238,7 +1242,7 @@ void get_block_hash_js(napi_env env, napi_value js_callback, void* context, stru
     assert(status == napi_ok);
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 1, values, &result);
+    status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -1314,11 +1318,11 @@ napi_value emit_log_js_promise_success(napi_env env, napi_callback_info info) {
     return NULL;
 }
 
-void emit_log_js(napi_env env, napi_value js_callback, void* context, struct js_emit_log_call* data) {
+void emit_log_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_emit_log_call* data) {
     napi_status status;
-    napi_value global;
+    napi_value object;
 
-    status = napi_get_global(env, &global);
+    status = napi_get_reference_value(env, ctx->object, &object);
     assert(status == napi_ok);
 
     napi_value values[3];
@@ -1341,7 +1345,7 @@ void emit_log_js(napi_env env, napi_value js_callback, void* context, struct js_
     }
 
     napi_value result;
-    status = napi_call_function(env, global, js_callback, 3, values, &result);
+    status = napi_call_function(env, object, js_callback, 3, values, &result);
     assert(status == napi_ok);
 
     bool isPromise = false;
@@ -1424,91 +1428,91 @@ void create_callbacks_from_context(napi_env env, struct evmc_js_context* ctx, na
   status = napi_get_named_property(env, node_context, "getAccountExists", &account_exists_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, account_exists_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) account_exists_js, &ctx->account_exists_fn);
+  status = napi_create_threadsafe_function(env, account_exists_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) account_exists_js, &ctx->account_exists_fn);
   assert(status == napi_ok);
 
   napi_value storage_callback;
   status = napi_get_named_property(env, node_context, "getStorage", &storage_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, storage_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) get_storage_js, &ctx->get_storage_fn);
+  status = napi_create_threadsafe_function(env, storage_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx,(napi_threadsafe_function_call_js) get_storage_js, &ctx->get_storage_fn);
   assert(status == napi_ok);
 
   napi_value set_storage_callback;
   status = napi_get_named_property(env, node_context, "setStorage", &set_storage_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, set_storage_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) set_storage_js, &ctx->set_storage_fn);
+  status = napi_create_threadsafe_function(env, set_storage_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) set_storage_js, &ctx->set_storage_fn);
   assert(status == napi_ok);
     
   napi_value get_balance_callback;
   status = napi_get_named_property(env, node_context, "getBalance", &get_balance_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, get_balance_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) get_balance_js, &ctx->get_balance_fn);
+  status = napi_create_threadsafe_function(env, get_balance_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) get_balance_js, &ctx->get_balance_fn);
   assert(status == napi_ok);
 
   napi_value get_code_size_callback;
   status = napi_get_named_property(env, node_context, "getCodeSize", &get_code_size_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, get_code_size_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) get_code_size_js, &ctx->get_code_size_fn);
+  status = napi_create_threadsafe_function(env, get_code_size_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) get_code_size_js, &ctx->get_code_size_fn);
   assert(status == napi_ok);
 
   napi_value get_code_hash_callback;
   status = napi_get_named_property(env, node_context, "getCodeHash", &get_code_hash_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, get_code_hash_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) get_code_hash_js, &ctx->get_code_hash_fn);
+  status = napi_create_threadsafe_function(env, get_code_hash_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) get_code_hash_js, &ctx->get_code_hash_fn);
   assert(status == napi_ok);
 
   napi_value copy_code_callback;
   status = napi_get_named_property(env, node_context, "copyCode", &copy_code_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, copy_code_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) copy_code_js, &ctx->copy_code_fn);
+  status = napi_create_threadsafe_function(env, copy_code_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) copy_code_js, &ctx->copy_code_fn);
   assert(status == napi_ok);
 
   napi_value self_destruct_callback;
   status = napi_get_named_property(env, node_context, "selfDestruct", &self_destruct_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, self_destruct_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) selfdestruct_js, &ctx->selfdestruct_fn);
+  status = napi_create_threadsafe_function(env, self_destruct_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) selfdestruct_js, &ctx->selfdestruct_fn);
   assert(status == napi_ok);
 
   napi_value call_callback;
   status = napi_get_named_property(env, node_context, "call", &call_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, call_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) call_js, &ctx->call_fn);
+  status = napi_create_threadsafe_function(env, call_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) call_js, &ctx->call_fn);
   assert(status == napi_ok);
 
   napi_value tx_context_callback;
   status = napi_get_named_property(env, node_context, "getTxContext", &tx_context_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, tx_context_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) get_tx_context_js, &ctx->get_tx_context_fn);
+  status = napi_create_threadsafe_function(env, tx_context_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) get_tx_context_js, &ctx->get_tx_context_fn);
   assert(status == napi_ok);
 
   napi_value get_block_hash_callback;
   status = napi_get_named_property(env, node_context, "getBlockHash", &get_block_hash_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, get_block_hash_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) get_block_hash_js, &ctx->get_block_hash_fn);
+  status = napi_create_threadsafe_function(env, get_block_hash_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) get_block_hash_js, &ctx->get_block_hash_fn);
   assert(status == napi_ok);
 
   napi_value emit_log_callback;
   status = napi_get_named_property(env, node_context, "emitLog", &emit_log_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, emit_log_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) emit_log_js, &ctx->emit_log_fn);
+  status = napi_create_threadsafe_function(env, emit_log_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) emit_log_js, &ctx->emit_log_fn);
   assert(status == napi_ok);
 
   napi_value execute_complete_callback;
   status = napi_get_named_property(env, node_context, "executeComplete", &execute_complete_callback);
   assert(status == napi_ok); 
 
-  status = napi_create_threadsafe_function(env, execute_complete_callback, NULL, unnamed, 0, 1, NULL, NULL, NULL, (napi_threadsafe_function_call_js) completer_js, &ctx->completer);
+  status = napi_create_threadsafe_function(env, execute_complete_callback, NULL, unnamed, 0, 1, NULL, NULL, (void*) ctx, (napi_threadsafe_function_call_js) completer_js, &ctx->completer);
   assert(status == napi_ok);
 }
 
@@ -1738,14 +1742,14 @@ napi_value evmc_create_evm(napi_env env, napi_callback_info info) {
     napi_status status;
     napi_value out;
     
-    size_t argc = 2;
-    napi_value argv[2];
+    size_t argc = 3;
+    napi_value argv[3];
 
     status = napi_get_cb_info(env, info, &argc, argv, NULL, NULL);
     assert(status == napi_ok);
 
-    if (argc != 2) {
-      status = napi_throw_error(env, "EINVAL", "Expected 2 arguments");
+    if (argc != 3) {
+      status = napi_throw_error(env, "EINVAL", "Expected 3 arguments");
     }
 
     char* path;
@@ -1767,6 +1771,10 @@ napi_value evmc_create_evm(napi_env env, napi_callback_info info) {
     context->instance = instance;
     context->host = &host_interface;
     context->released = false;
+
+    // This creates a WEAK reference, which is OK because we only use the refrence from execute() which requires
+    // an instance of the EVM object itself.
+    napi_create_reference(env, argv[2], 0, &context->object);
 
     create_callbacks_from_context(env, context, argv[1]);
 

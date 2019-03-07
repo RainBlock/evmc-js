@@ -250,7 +250,7 @@ export interface EvmcTxContext {
 
 /** Private interface to interact with the EVM binding. */
 interface EvmcBinding {
-  createEvmcEvm(path: string, context: EvmJsContext): EvmcHandle;
+  createEvmcEvm(path: string, context: EvmJsContext, obj : {}): EvmcHandle;
   executeEvmcEvm(handle: EvmcHandle, parameters: EvmcExecutionParameters):
       EvmcResult;
   releaseEvmcEvm(handle: EvmcHandle): void;
@@ -294,7 +294,7 @@ export abstract class Evmc {
       getBlockHash: this.getBlockHash,
       emitLog: this.emitLog,
       executeComplete: () => {}
-    });
+    }, this);
   }
 
 
