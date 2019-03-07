@@ -45,8 +45,7 @@ const CALL_ACCOUNT = 0x44fD3AB8381cC3d14AFa7c4aF7Fd13CdC65026E1n;
 const CODE_INPUT_DATA = Buffer.from(
     'ccd99eedcb9df33c9ca049ed55f74447201e3774684815bc590354427595232b', 'hex');
 const CODE_OUTPUT_DATA = Buffer.from(
-    'b745858cc23a311a303b43f18813d7331a257a817201576533298ffbe3809b32',
-    'hex');
+    'b745858cc23a311a303b43f18813d7331a257a817201576533298ffbe3809b32', 'hex');
 const CREATE_OUTPUT_ACCOUNT = 0xA643e67B31F2E0A7672FD87d3faa28eAa845E311n;
 
 const BLOCKHASH_NUM = BLOCK_NUMBER - 4n;
@@ -417,7 +416,8 @@ describe('Try EVM creation', () => {
         Buffer.from(
             evmasm.compile(`
             mstore(0, 0x${CODE_INPUT_DATA.toString('hex')})
-            jumpi(success, eq(create(10000, 0, 32), 0x${CREATE_OUTPUT_ACCOUNT.toString(16)}))
+            jumpi(success, eq(create(10000, 0, 32), 0x${
+                CREATE_OUTPUT_ACCOUNT.toString(16)}))
             data(0xFE) // Invalid Opcode
             success:
             stop
