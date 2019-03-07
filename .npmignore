@@ -1,3 +1,5 @@
 aleth
 libbuild
 build
+*.tgz
+cmake.sh
