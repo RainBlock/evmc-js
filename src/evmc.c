@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include <node_api.h>
+
 #include <uv.h>
 
 #include "evmc/evmc.h"
@@ -196,6 +197,7 @@ enum evmc_storage_status set_storage(struct evmc_js_context* context,
      assert(status == napi_ok);
 
      uv_sem_wait(&callinfo.sem);
+     uv_sem_destroy(&callinfo.sem);
 
      status = napi_release_threadsafe_function(context->set_storage_fn, napi_tsfn_release);
      assert(status == napi_ok);
@@ -285,6 +287,7 @@ void get_storage_js(napi_env env, napi_value js_callback, struct evmc_js_context
      assert(status == napi_ok);
 
      uv_sem_wait(&callinfo.sem);
+     uv_sem_destroy(&callinfo.sem);
 
      status = napi_release_threadsafe_function(context->get_storage_fn, napi_tsfn_release);
      assert(status == napi_ok);
@@ -373,6 +376,7 @@ bool account_exists(struct evmc_js_context* context,
     assert(status == napi_ok);
 
     uv_sem_wait(&callinfo.sem);
+    uv_sem_destroy(&callinfo.sem);
 
     status = napi_release_threadsafe_function(context->account_exists_fn, napi_tsfn_release);
     assert(status == napi_ok);
@@ -459,6 +463,7 @@ evmc_bytes32 get_balance(struct evmc_js_context* context,
     assert(status == napi_ok);
 
     uv_sem_wait(&callinfo.sem);
+    uv_sem_destroy(&callinfo.sem);
 
     status = napi_release_threadsafe_function(context->get_balance_fn, napi_tsfn_release);
     assert(status == napi_ok);
@@ -550,6 +555,7 @@ size_t get_code_size(struct evmc_js_context* context,
     assert(status == napi_ok);
 
     uv_sem_wait(&callinfo.sem);
+    uv_sem_destroy(&callinfo.sem);
 
     status = napi_release_threadsafe_function(context->get_code_size_fn, napi_tsfn_release);
     assert(status == napi_ok);
@@ -637,6 +643,7 @@ evmc_bytes32 get_code_hash(struct evmc_js_context* context,
     assert(status == napi_ok);
 
     uv_sem_wait(&callinfo.sem);
+    uv_sem_destroy(&callinfo.sem);
 
     status = napi_release_threadsafe_function(context->get_code_hash_fn, napi_tsfn_release);
     assert(status == napi_ok);
@@ -753,6 +760,7 @@ size_t copy_code(struct evmc_js_context* context,
     assert(status == napi_ok);
 
     uv_sem_wait(&callinfo.sem);
+    uv_sem_destroy(&callinfo.sem);
 
     status = napi_release_threadsafe_function(context->copy_code_fn, napi_tsfn_release);
     assert(status == napi_ok);
@@ -836,7 +844,7 @@ void selfdestruct(struct evmc_js_context* context,
     assert(status == napi_ok);
 
     uv_sem_wait(&callinfo.sem);
-
+    uv_sem_destroy(&callinfo.sem);
 
     status = napi_release_threadsafe_function(context->selfdestruct_fn, napi_tsfn_release);
     assert(status == napi_ok);
@@ -1049,7 +1057,8 @@ struct evmc_result call(struct evmc_js_context* context,
     assert(status == napi_ok);
 
     uv_sem_wait(&callinfo.sem);
-    
+    uv_sem_destroy(&callinfo.sem);
+
     status = napi_release_threadsafe_function(context->call_fn, napi_tsfn_release);
     assert(status == napi_ok);
 
@@ -1208,7 +1217,7 @@ struct evmc_tx_context get_tx_context(struct evmc_js_context* context) {
     assert(status == napi_ok);
 
     uv_sem_wait(&callinfo.sem);
-
+    uv_sem_destroy(&callinfo.sem);
 
     status = napi_release_threadsafe_function(context->get_tx_context_fn, napi_tsfn_release);
     assert(status == napi_ok);
@@ -1295,7 +1304,7 @@ evmc_bytes32 get_block_hash(struct evmc_js_context* context, uint64_t number) {
     assert(status == napi_ok);
 
     uv_sem_wait(&callinfo.sem);
-
+    uv_sem_destroy(&callinfo.sem);
 
     status = napi_release_threadsafe_function(context->get_block_hash_fn, napi_tsfn_release);
     assert(status == napi_ok);
@@ -1406,7 +1415,8 @@ void emit_log(struct evmc_js_context* context,
     assert(status == napi_ok);
 
     uv_sem_wait(&callinfo.sem);
-
+    uv_sem_destroy(&callinfo.sem);
+    
     status = napi_release_threadsafe_function(context->emit_log_fn, napi_tsfn_release);
     assert(status == napi_ok);                      
 }
@@ -1606,6 +1616,8 @@ void completer_js(napi_env env, napi_value js_callback, void* context, struct js
 
   status = napi_resolve_deferred(env, data->deferred, out);
   assert(status == napi_ok);
+
+  free(data);
 }
 
 void execute_done(uv_work_t* work, int status) {
