@@ -904,7 +904,14 @@ napi_value call_js_promise_success(napi_env env, napi_callback_info info) {
     napi_value node_create_address;
     status = napi_get_named_property(env, argv[0], "createAddress", &node_create_address);
     assert(status == napi_ok);
-    get_evmc_address_from_bigint(env, node_create_address, &data->result->create_address);
+    
+    napi_valuetype type;
+    status = napi_typeof(env, node_create_address, &type);
+    assert (status == napi_ok);
+
+    if (type == napi_bigint) {
+      get_evmc_address_from_bigint(env, node_create_address, &data->result->create_address);
+    }
 
     uv_sem_post(&data->sem);
     return NULL;
@@ -1011,7 +1018,14 @@ void call_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, 
       napi_value node_create_address;
       status = napi_get_named_property(env, result, "createAddress", &node_create_address);
       assert(status == napi_ok);
-      get_evmc_address_from_bigint(env, node_create_address, &data->result->create_address);
+    
+      napi_valuetype type;
+      status = napi_typeof(env, node_create_address, &type);
+      assert (status == napi_ok);
+
+      if (type == napi_bigint) {
+        get_evmc_address_from_bigint(env, node_create_address, &data->result->create_address);
+      }
 
       uv_sem_post(&data->sem);
     } else {
