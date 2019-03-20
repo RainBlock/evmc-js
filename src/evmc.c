@@ -103,32 +103,96 @@ void get_evmc_address_from_bigint(napi_env env, napi_value in, evmc_address* out
   *((uint32_t*)(out->bytes + 16)) = __builtin_bswap32(*(uint32_t*)(tempAsBytes));
 }
 
-struct js_set_storage_call {
+typedef void (*converter_fn)(napi_env env, napi_value value, void* data);
+
+struct js_call {
   uv_sem_t sem;
+  converter_fn converter;
+};
+
+void js_call_and_wait(napi_threadsafe_function fn, struct js_call* calldata) {
+  napi_status status;
+
+  status = napi_acquire_threadsafe_function(fn);
+  assert(status == napi_ok);
+
+  int uv_status;
+  uv_status = uv_sem_init(&calldata->sem, 0);
+  assert(uv_status == 0);
+
+  status = napi_call_threadsafe_function(fn, calldata, napi_tsfn_blocking); 
+  assert(status == napi_ok);
+
+  uv_sem_wait(&calldata->sem);
+  uv_sem_destroy(&calldata->sem);
+
+  status = napi_release_threadsafe_function(fn, napi_tsfn_release);
+  assert(status == napi_ok);
+}
+
+
+napi_value js_return_or_await_success(napi_env env, napi_callback_info info) {
+    napi_value argv[1];
+    napi_status status;
+    struct js_call* data;
+    size_t argc = 1;
+
+    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
+    assert(status == napi_ok);
+  
+    if (data->converter != NULL) {
+      data->converter(env, argv[0], data);
+    }
+    
+    uv_sem_post(&data->sem);
+
+    return NULL;
+}
+
+void js_return_or_await(napi_env env, napi_value result, struct js_call* data, converter_fn converter) {
+    napi_status status;
+    bool is_promise = false;
+    status = napi_is_promise(env, result, &is_promise);
+    assert(status == napi_ok);
+
+    if (!is_promise) {
+      if (converter != NULL) {
+        converter(env, result, data);
+      }
+      uv_sem_post(&data->sem);
+    } else {
+      data->converter = converter;
+
+      napi_value then_callback;
+      status = napi_get_named_property(env, result, "then", &then_callback);
+      assert(status == napi_ok);
+
+      napi_value success_callback;
+      status = napi_create_function(env, NULL, 0, js_return_or_await_success, data, &success_callback);
+      assert(status == napi_ok);
+
+      napi_value args[1];
+      args[0] = success_callback;
+      status = napi_call_function(env, result, then_callback, 1, args, NULL);
+      assert(status == napi_ok);
+    }
+}
+
+struct js_set_storage_call {
+  struct js_call;
   const evmc_address* address;
   const evmc_bytes32* key;
   const evmc_bytes32* value;
   enum evmc_storage_status result;
 };
 
-
-napi_value set_storage_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_value argv[1];
-    napi_status status;
-    struct js_set_storage_call* data;
-    size_t argc = 1;
-
-    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
-    assert(status == napi_ok);
-
-    int64_t enumVal;
-    status = napi_get_value_int64(env, argv[0], &enumVal);
-    assert(status == napi_ok);
-    data->result = enumVal;
-
-    uv_sem_post(&data->sem);
-
-    return NULL;
+void set_storage_js_converter(napi_env env, napi_value result, struct js_set_storage_call* data) {
+  napi_status status;
+  
+  int64_t enumVal;
+  status = napi_get_value_int64(env, result, &enumVal);
+  assert(status == napi_ok);
+  data->result = enumVal;
 }
 
 void set_storage_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_set_storage_call* data) {
@@ -148,87 +212,35 @@ void set_storage_js(napi_env env, napi_value js_callback, struct evmc_js_context
     status = napi_call_function(env, object, js_callback, 3, values, &result);
     assert(status == napi_ok);
 
-    bool isPromise = false;
-    status = napi_is_promise(env, result, &isPromise);
-    assert(status == napi_ok);
-
-    if (!isPromise) {
-      int64_t enumVal;
-      status = napi_get_value_int64(env, result, &enumVal);
-      assert(status == napi_ok);
-      data->result = enumVal;
-
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, set_storage_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+    js_return_or_await(env, result, (struct js_call*) data, (converter_fn) set_storage_js_converter);
 }
 
 enum evmc_storage_status set_storage(struct evmc_js_context* context,
                                             const evmc_address* address,
                                             const evmc_bytes32* key,
                                             const evmc_bytes32* value) {
-     napi_status status;
-
      struct js_set_storage_call callinfo;
      callinfo.address = address;
      callinfo.key = key;
      callinfo.value = value;
 
-     status = napi_acquire_threadsafe_function(context->set_storage_fn);
-     assert(status == napi_ok);
-
-     int uv_status;
-     uv_status = uv_sem_init(&callinfo.sem, 0);
-     assert(uv_status == 0);
-
-     status = napi_call_threadsafe_function(context->set_storage_fn, &callinfo, napi_tsfn_blocking); 
-     assert(status == napi_ok);
-
-     uv_sem_wait(&callinfo.sem);
-     uv_sem_destroy(&callinfo.sem);
-
-     status = napi_release_threadsafe_function(context->set_storage_fn, napi_tsfn_release);
-     assert(status == napi_ok);
+     js_call_and_wait(context->set_storage_fn, (struct js_call*) &callinfo);
 
      return callinfo.result;
 }
 
-
 struct js_storage_call {
-  uv_sem_t sem;
+  struct js_call;
   const evmc_address* address;
   const evmc_bytes32* key;
   evmc_bytes32 result;
 };
 
-napi_value get_storage_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_value argv[1];
-    napi_status status;
-    struct js_storage_call* data;
-    size_t argc = 1;
-
-    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
-    assert(status == napi_ok);
-
-    get_evmc_bytes32_from_bigint(env, argv[0], &data->result);
-    uv_sem_post(&data->sem);
-
-    return NULL;
+void get_storage_js_converter(napi_env env, napi_value result, struct js_storage_call* data) {
+    get_evmc_bytes32_from_bigint(env, result, &data->result);
 }
 
-void get_storage_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx,  struct js_storage_call* data) {
+void get_storage_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_storage_call* data) {
     napi_status status;
     napi_value object;
 
@@ -244,78 +256,31 @@ void get_storage_js(napi_env env, napi_value js_callback, struct evmc_js_context
     status = napi_call_function(env, object, js_callback, 2, values, &result);
     assert(status == napi_ok);
 
-    bool isPromise = false;
-    status = napi_is_promise(env, result, &isPromise);
-    assert(status == napi_ok);
-
-    if (!isPromise) {
-      get_evmc_bytes32_from_bigint(env, result, &data->result);
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, get_storage_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+    js_return_or_await(env, result, (struct js_call*) data, (converter_fn) get_storage_js_converter);
 }
 
  evmc_bytes32 get_storage(struct evmc_js_context* context,
                                             const evmc_address* address,
                                             const evmc_bytes32* key) {
-     napi_status status;
-
      struct js_storage_call callinfo;
      callinfo.address = address;
      callinfo.key = key;
 
-     status = napi_acquire_threadsafe_function(context->get_storage_fn);
-     assert(status == napi_ok);
-
-     int uv_status;
-     uv_status = uv_sem_init(&callinfo.sem, 0);
-     assert(uv_status == 0);
-
-     status = napi_call_threadsafe_function(context->get_storage_fn, &callinfo, napi_tsfn_blocking); 
-     assert(status == napi_ok);
-
-     uv_sem_wait(&callinfo.sem);
-     uv_sem_destroy(&callinfo.sem);
-
-     status = napi_release_threadsafe_function(context->get_storage_fn, napi_tsfn_release);
-     assert(status == napi_ok);
+     js_call_and_wait(context->get_storage_fn, (struct js_call*) &callinfo);
 
      return callinfo.result;
 }
 
 struct js_account_exists_call {
-  uv_sem_t sem;
+  struct js_call;
   const evmc_address* address;
   bool result;
 };
 
-napi_value account_exists_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_value argv[1];
+void account_exists_js_converter(napi_env env, napi_value result, struct js_account_exists_call* data) {
     napi_status status;
-    struct js_account_exists_call* data;
-    size_t argc = 1;
-
-    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
+    status = napi_get_value_bool(env, result, &data->result);
     assert(status == napi_ok);
-
-    status = napi_get_value_bool(env, argv[0], &data->result);
-    assert(status == napi_ok);
-
-    uv_sem_post(&data->sem);
-
-    return NULL;
 }
 
 void account_exists_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx,  struct js_account_exists_call* data) {
@@ -333,78 +298,29 @@ void account_exists_js(napi_env env, napi_value js_callback, struct evmc_js_cont
     status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
-    bool isPromise = false;
-    status = napi_is_promise(env, result, &isPromise);
-    assert(status == napi_ok);
-
-    if (!isPromise) {
-      status = napi_get_value_bool(env, result, &data->result);
-      assert(status == napi_ok);
-
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, account_exists_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+    js_return_or_await(env, result, (struct js_call*) data, (converter_fn) account_exists_js_converter);
 }
 
 bool account_exists(struct evmc_js_context* context,
   const evmc_address* address) {
-    napi_status status;
-    
     struct js_account_exists_call callinfo;
     callinfo.address = address;
   
-    status = napi_acquire_threadsafe_function(context->account_exists_fn);
-    assert(status == napi_ok);
-
-    int uv_status;
-    uv_status = uv_sem_init(&callinfo.sem, 0);
-    assert(uv_status == 0);
-
-    status = napi_call_threadsafe_function(context->account_exists_fn, &callinfo, napi_tsfn_blocking); 
-    assert(status == napi_ok);
-
-    uv_sem_wait(&callinfo.sem);
-    uv_sem_destroy(&callinfo.sem);
-
-    status = napi_release_threadsafe_function(context->account_exists_fn, napi_tsfn_release);
-    assert(status == napi_ok);
+    js_call_and_wait(context->account_exists_fn, (struct js_call*) &callinfo);
 
     return callinfo.result;
 }
 
 
 struct js_get_balance_call {
-  uv_sem_t sem;
+  struct js_call;
   const evmc_address* address;
   evmc_bytes32 result;
 };
 
 
-napi_value get_balance_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_value argv[1];
-    napi_status status;
-    struct js_get_balance_call* data;
-    size_t argc = 1;
-
-    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
-    assert(status == napi_ok);
-
-    get_evmc_bytes32_from_bigint(env, argv[0], &data->result);
-    uv_sem_post(&data->sem);
-
-    return NULL;
+void get_balance_js_converter(napi_env env, napi_value result, struct js_get_balance_call* data) {
+  get_evmc_bytes32_from_bigint(env, result, &data->result);
 }
 
 void get_balance_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_get_balance_call* data) {
@@ -422,78 +338,30 @@ void get_balance_js(napi_env env, napi_value js_callback, struct evmc_js_context
     status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
-    bool isPromise = false;
-    status = napi_is_promise(env, result, &isPromise);
-    assert(status == napi_ok);
-
-    if (!isPromise) {
-      get_evmc_bytes32_from_bigint(env, result, &data->result);
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, get_balance_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+    js_return_or_await(env, result, (struct js_call*) data, (converter_fn) get_balance_js_converter);
 }
 
 evmc_bytes32 get_balance(struct evmc_js_context* context,
   const evmc_address* address) {
-    napi_status status;
-    
     struct js_get_balance_call callinfo;
     callinfo.address = address;
-  
-    status = napi_acquire_threadsafe_function(context->get_balance_fn);
-    assert(status == napi_ok);
 
-    int uv_status;
-    uv_status = uv_sem_init(&callinfo.sem, 0);
-    assert(uv_status == 0);
-
-    status = napi_call_threadsafe_function(context->get_balance_fn, &callinfo, napi_tsfn_blocking); 
-    assert(status == napi_ok);
-
-    uv_sem_wait(&callinfo.sem);
-    uv_sem_destroy(&callinfo.sem);
-
-    status = napi_release_threadsafe_function(context->get_balance_fn, napi_tsfn_release);
-    assert(status == napi_ok);
+    js_call_and_wait(context->get_balance_fn, (struct js_call*) &callinfo);
 
     return callinfo.result;
 }
 
 struct js_get_code_size_call {
-  uv_sem_t sem;
+  struct js_call;
   const evmc_address* address;
   size_t result;
 };
 
-
-napi_value get_code_size_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_value argv[1];
-    napi_status status;
-    struct js_get_code_size_call* data;
-    size_t argc = 1;
-
-    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
-    assert(status == napi_ok);
-
-    bool lossless;
-    status = napi_get_value_bigint_uint64(env, argv[0], (uint64_t*) &data->result, &lossless);
-    assert(status == napi_ok);
-
-    uv_sem_post(&data->sem);
-
-    return NULL;
+void get_code_size_js_converter(napi_env env, napi_value result, struct js_get_code_size_call* data) {
+  napi_status status;
+  bool lossless;
+  status = napi_get_value_bigint_uint64(env, result, (uint64_t*) &data->result, &lossless);
+  assert(status == napi_ok);
 }
 
 void get_code_size_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_get_code_size_call* data) {
@@ -511,80 +379,27 @@ void get_code_size_js(napi_env env, napi_value js_callback, struct evmc_js_conte
     status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
-    bool isPromise = false;
-    status = napi_is_promise(env, result, &isPromise);
-    assert(status == napi_ok);
-
-    if (!isPromise) {
-      bool lossless;
-      status = napi_get_value_bigint_uint64(env, result, (uint64_t*) &data->result, &lossless);
-      assert(status == napi_ok);
-
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, get_code_size_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+    js_return_or_await(env, result, (struct js_call*) data, (converter_fn) get_code_size_js_converter);
 }
 
 size_t get_code_size(struct evmc_js_context* context,
   const evmc_address* address) {
-    napi_status status;
-
     struct js_get_code_size_call callinfo;
     callinfo.address = address;
   
-    status = napi_acquire_threadsafe_function(context->get_code_size_fn);
-    assert(status == napi_ok);
-
-    int uv_status;
-    uv_status = uv_sem_init(&callinfo.sem, 0);
-    assert(uv_status == 0);
-
-    status = napi_call_threadsafe_function(context->get_code_size_fn, &callinfo, napi_tsfn_blocking); 
-    assert(status == napi_ok);
-
-    uv_sem_wait(&callinfo.sem);
-    uv_sem_destroy(&callinfo.sem);
-
-    status = napi_release_threadsafe_function(context->get_code_size_fn, napi_tsfn_release);
-    assert(status == napi_ok);
+    js_call_and_wait(context->get_code_size_fn, (struct js_call*) &callinfo);
 
     return callinfo.result;
 }
 
-
-
 struct js_get_code_hash_call {
-  uv_sem_t sem;
+  struct js_call;
   const evmc_address* address;
   evmc_bytes32 result;
 };
 
-
-napi_value get_code_hash_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_value argv[1];
-    napi_status status;
-    struct js_get_code_hash_call* data;
-    size_t argc = 1;
-
-    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
-    assert(status == napi_ok);
-
-    get_evmc_bytes32_from_bigint(env, argv[0], &data->result);
-    uv_sem_post(&data->sem);
-
-    return NULL;
+void get_code_hash_js_converter(napi_env env, napi_value result, struct js_get_code_hash_call* data) {
+    get_evmc_bytes32_from_bigint(env, result, &data->result);
 }
 
 void get_code_hash_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_get_code_hash_call* data) {
@@ -602,57 +417,22 @@ void get_code_hash_js(napi_env env, napi_value js_callback, struct evmc_js_conte
     status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
-    bool isPromise = false;
-    status = napi_is_promise(env, result, &isPromise);
-    assert(status == napi_ok);
-
-    if (!isPromise) {
-      get_evmc_bytes32_from_bigint(env, result, &data->result);
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, get_code_hash_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+    js_return_or_await(env, result, (struct js_call*) data, (converter_fn) get_code_hash_js_converter);
 }
 
 evmc_bytes32 get_code_hash(struct evmc_js_context* context,
   const evmc_address* address) {
-    napi_status status;
 
     struct js_get_code_hash_call callinfo;
     callinfo.address = address;
   
-    status = napi_acquire_threadsafe_function(context->get_code_hash_fn);
-    assert(status == napi_ok);
-
-    int uv_status;
-    uv_status = uv_sem_init(&callinfo.sem, 0);
-    assert(uv_status == 0);
-
-    status = napi_call_threadsafe_function(context->get_code_hash_fn, &callinfo, napi_tsfn_blocking); 
-    assert(status == napi_ok);
-
-    uv_sem_wait(&callinfo.sem);
-    uv_sem_destroy(&callinfo.sem);
-
-    status = napi_release_threadsafe_function(context->get_code_hash_fn, napi_tsfn_release);
-    assert(status == napi_ok);
+    js_call_and_wait(context->get_code_hash_fn, (struct js_call*) &callinfo);
 
     return callinfo.result;
 }
 
 struct js_copy_code_call {
-  uv_sem_t sem;
+  struct js_call;
   const evmc_address* address;
   size_t code_offset;
   uint8_t* buffer_data;
@@ -660,28 +440,17 @@ struct js_copy_code_call {
   size_t result;
 };
 
+void copy_code_js_converter(napi_env env, napi_value result, struct js_copy_code_call* data) {
+  napi_status status;
 
-napi_value copy_code_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_value argv[1];
-    napi_status status;
-    struct js_copy_code_call* data;
-    size_t argc = 1;
+  char* node_buffer;
+  size_t node_buffer_length;
+  status = napi_get_buffer_info(env, result, (void**) &node_buffer, &node_buffer_length);
+  assert(status == napi_ok);
 
-    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
-    assert(status == napi_ok);
-
-    char* node_buffer;
-    size_t node_buffer_length;
-    status = napi_get_buffer_info(env, argv[0], (void**) &node_buffer, &node_buffer_length);
-    assert(status == napi_ok);
-
-    size_t bytes_written = (node_buffer_length < data->buffer_size) ? node_buffer_length : data->buffer_size;
-    memcpy(data->buffer_data, node_buffer, bytes_written);
-    data->result = bytes_written;
-
-    uv_sem_post(&data->sem);
-
-    return NULL;
+  size_t bytes_written = (node_buffer_length < data->buffer_size) ?  node_buffer_length : data->buffer_size;
+  memcpy(data->buffer_data, (void**) node_buffer, bytes_written);
+  data->result = bytes_written;
 }
 
 void copy_code_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_copy_code_call* data) {
@@ -705,35 +474,7 @@ void copy_code_js(napi_env env, napi_value js_callback, struct evmc_js_context* 
     status = napi_call_function(env, object, js_callback, 3, values, &result);
     assert(status == napi_ok);
 
-    bool isPromise = false;
-    status = napi_is_promise(env, result, &isPromise);
-    assert(status == napi_ok);
-
-    if (!isPromise) {
-      char* node_buffer;
-      size_t node_buffer_length;
-      status = napi_get_buffer_info(env, result, (void**) &node_buffer, &node_buffer_length);
-      assert(status == napi_ok);
-
-      size_t bytes_written = (node_buffer_length < data->buffer_size) ?  node_buffer_length : data->buffer_size;
-      memcpy(data->buffer_data, (void**) node_buffer, bytes_written);
-      data->result = bytes_written;
-
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, copy_code_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+    js_return_or_await(env, result, (struct js_call*) data, (converter_fn) copy_code_js_converter);
 }
 
 size_t copy_code(struct evmc_js_context* context,
@@ -741,50 +482,23 @@ size_t copy_code(struct evmc_js_context* context,
     size_t code_offset,
     uint8_t* buffer_data,
     size_t buffer_size) {
-    napi_status status;
     
     struct js_copy_code_call callinfo;
     callinfo.address = address;
     callinfo.code_offset = code_offset;
     callinfo.buffer_data = buffer_data;
     callinfo.buffer_size = buffer_size;
-
-    status = napi_acquire_threadsafe_function(context->copy_code_fn);
-    assert(status == napi_ok);
-
-    int uv_status;
-    uv_status = uv_sem_init(&callinfo.sem, 0);
-    assert(uv_status == 0);
-
-    status = napi_call_threadsafe_function(context->copy_code_fn, &callinfo, napi_tsfn_blocking); 
-    assert(status == napi_ok);
-
-    uv_sem_wait(&callinfo.sem);
-    uv_sem_destroy(&callinfo.sem);
-
-    status = napi_release_threadsafe_function(context->copy_code_fn, napi_tsfn_release);
-    assert(status == napi_ok);
+  
+    js_call_and_wait(context->copy_code_fn, (struct js_call*) &callinfo);
 
     return callinfo.result;
 }
 
 struct js_selfdestruct_call {
-  uv_sem_t sem;
+  struct js_call;
   const evmc_address* address;
   const evmc_address* beneficiary;
 };
-
-
-napi_value selfdestruct_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_status status;
-    struct js_selfdestruct_call* data;
-
-    status = napi_get_cb_info(env, info, NULL, NULL, NULL, (void**) &data);
-    assert(status == napi_ok);
-
-    uv_sem_post(&data->sem);
-    return NULL;
-}
 
 void selfdestruct_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_selfdestruct_call* data) {
     napi_status status;
@@ -802,56 +516,22 @@ void selfdestruct_js(napi_env env, napi_value js_callback, struct evmc_js_contex
     status = napi_call_function(env, object, js_callback, 2, values, &result);
     assert(status == napi_ok);
 
-    bool isPromise = false;
-    status = napi_is_promise(env, result, &isPromise);
-    assert(status == napi_ok);
-
-    if (!isPromise) {
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, selfdestruct_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+    js_return_or_await(env, result, (struct js_call*) data, NULL);
 }
 
 void selfdestruct(struct evmc_js_context* context,
     const evmc_address* address,
     const evmc_address* beneficiary) {
-    napi_status status;
     
     struct js_selfdestruct_call callinfo;
     callinfo.address = address;
     callinfo.beneficiary = beneficiary;
   
-    status = napi_acquire_threadsafe_function(context->selfdestruct_fn);
-    assert(status == napi_ok);
-
-    int uv_status;
-    uv_status = uv_sem_init(&callinfo.sem, 0);
-    assert(uv_status == 0);
-
-    status = napi_call_threadsafe_function(context->selfdestruct_fn, &callinfo, napi_tsfn_blocking); 
-    assert(status == napi_ok);
-
-    uv_sem_wait(&callinfo.sem);
-    uv_sem_destroy(&callinfo.sem);
-
-    status = napi_release_threadsafe_function(context->selfdestruct_fn, napi_tsfn_release);
-    assert(status == napi_ok);
+    js_call_and_wait(context->selfdestruct_fn, (struct js_call*) &callinfo);
 }
 
 struct js_call_call {
-  uv_sem_t sem;
+  struct js_call;
   const struct evmc_message* msg;
   struct evmc_result* result;
 };
@@ -862,59 +542,49 @@ void call_free_result(const struct evmc_result* result) {
   }
 }
 
-napi_value call_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_status status;
-    struct js_call_call* data;
-    size_t argc = 1;
-    napi_value argv[1];
+void call_js_converter(napi_env env, napi_value result, struct js_call_call* data) {
+  napi_status status;
+      napi_value node_status_code;
+      status = napi_get_named_property(env, result, "statusCode", &node_status_code);
+      assert(status == napi_ok);
+      int64_t int_status_code;
+      status = napi_get_value_int64(env, node_status_code, &int_status_code);
+      assert(status == napi_ok);
+      data->result->status_code = (enum evmc_status_code) int_status_code;
 
-    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
-    assert(status == napi_ok);
+      napi_value node_gas_left;
+      status = napi_get_named_property(env, result, "gasLeft", &node_gas_left);
+      assert(status == napi_ok);
+      bool gasLeftLossless = true;
+      status = napi_get_value_bigint_int64(env, node_gas_left, &data->result->gas_left, &gasLeftLossless);
+      assert(status == napi_ok);
 
-    napi_value node_status_code;
-    status = napi_get_named_property(env, argv[0], "statusCode", &node_status_code);
-    assert(status == napi_ok);
-    int64_t int_status_code;
-    status = napi_get_value_int64(env, node_status_code, &int_status_code);
-    assert(status == napi_ok);
-    data->result->status_code = (enum evmc_status_code) int_status_code;
+      napi_value node_output_data;
+      status = napi_get_named_property(env, result, "outputData", &node_output_data);
+      assert(status == napi_ok);
+      uint8_t* outputData;
+      size_t outputData_size;
+      status = napi_get_buffer_info(env, node_output_data, (void**) &outputData, &outputData_size);
+      assert(status == napi_ok);
+      
+      data->result->output_size = outputData_size;
+      if (outputData_size > 0) {
+        data->result->output_data = (uint8_t*) malloc(outputData_size);
+        memcpy((void*)data->result->output_data, outputData, outputData_size);
+        data->result->release = call_free_result;
+      } 
 
-    napi_value node_gas_left;
-    status = napi_get_named_property(env, argv[0], "gasLeft", &node_gas_left);
-    assert(status == napi_ok);
-    bool gasLeftLossless = true;
-    status = napi_get_value_bigint_int64(env, node_gas_left, &data->result->gas_left, &gasLeftLossless);
-    assert(status == napi_ok);
-
-    napi_value node_output_data;
-    status = napi_get_named_property(env, argv[0], "outputData", &node_output_data);
-    assert(status == napi_ok);
-    uint8_t* outputData;
-    size_t outputData_size;
-    status = napi_get_buffer_info(env, node_output_data, (void**) &outputData, &outputData_size);
-    assert(status == napi_ok);
-
-    data->result->output_size = outputData_size;
-    if (outputData_size > 0) {
-      data->result->output_data = (uint8_t*) malloc(outputData_size);
-      memcpy((void*)data->result->output_data, outputData, outputData_size);
-      data->result->release = call_free_result;
-    }
-
-    napi_value node_create_address;
-    status = napi_get_named_property(env, argv[0], "createAddress", &node_create_address);
-    assert(status == napi_ok);
+      napi_value node_create_address;
+      status = napi_get_named_property(env, result, "createAddress", &node_create_address);
+      assert(status == napi_ok);
     
-    napi_valuetype type;
-    status = napi_typeof(env, node_create_address, &type);
-    assert (status == napi_ok);
+      napi_valuetype type;
+      status = napi_typeof(env, node_create_address, &type);
+      assert (status == napi_ok);
 
-    if (type == napi_bigint) {
-      get_evmc_address_from_bigint(env, node_create_address, &data->result->create_address);
-    }
-
-    uv_sem_post(&data->sem);
-    return NULL;
+      if (type == napi_bigint) {
+        get_evmc_address_from_bigint(env, node_create_address, &data->result->create_address);
+      }
 }
 
 void call_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_call_call* data) {
@@ -980,68 +650,7 @@ void call_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, 
     status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
-    bool isPromise = false;
-    status = napi_is_promise(env, result, &isPromise);
-    assert(status == napi_ok);
-
-    if (!isPromise) {
-      napi_value node_status_code;
-      status = napi_get_named_property(env, result, "statusCode", &node_status_code);
-      assert(status == napi_ok);
-      int64_t int_status_code;
-      status = napi_get_value_int64(env, node_status_code, &int_status_code);
-      assert(status == napi_ok);
-      data->result->status_code = (enum evmc_status_code) int_status_code;
-
-      napi_value node_gas_left;
-      status = napi_get_named_property(env, result, "gasLeft", &node_gas_left);
-      assert(status == napi_ok);
-      bool gasLeftLossless = true;
-      status = napi_get_value_bigint_int64(env, node_gas_left, &data->result->gas_left, &gasLeftLossless);
-      assert(status == napi_ok);
-
-      napi_value node_output_data;
-      status = napi_get_named_property(env, result, "outputData", &node_output_data);
-      assert(status == napi_ok);
-      uint8_t* outputData;
-      size_t outputData_size;
-      status = napi_get_buffer_info(env, node_output_data, (void**) &outputData, &outputData_size);
-      assert(status == napi_ok);
-      
-      data->result->output_size = outputData_size;
-      if (outputData_size > 0) {
-        data->result->output_data = (uint8_t*) malloc(outputData_size);
-        memcpy((void*)data->result->output_data, outputData, outputData_size);
-        data->result->release = call_free_result;
-      } 
-
-      napi_value node_create_address;
-      status = napi_get_named_property(env, result, "createAddress", &node_create_address);
-      assert(status == napi_ok);
-    
-      napi_valuetype type;
-      status = napi_typeof(env, node_create_address, &type);
-      assert (status == napi_ok);
-
-      if (type == napi_bigint) {
-        get_evmc_address_from_bigint(env, node_create_address, &data->result->create_address);
-      }
-
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, call_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+    js_return_or_await(env, result, (struct js_call*) data, (converter_fn) call_js_converter);
 }
 
 struct evmc_result call(struct evmc_js_context* context,
@@ -1053,210 +662,98 @@ struct evmc_result call(struct evmc_js_context* context,
     result.gas_left = 0;
     result.release = NULL;
 
-    napi_status status;
     struct js_call_call callinfo;
     callinfo.msg = msg;
     callinfo.result = &result;
   
-    status = napi_acquire_threadsafe_function(context->call_fn);
-    assert(status == napi_ok);
-
-    int uv_status;
-    uv_status = uv_sem_init(&callinfo.sem, 0);
-    assert(uv_status == 0);
-
-    status = napi_call_threadsafe_function(context->call_fn, &callinfo, napi_tsfn_blocking); 
-    assert(status == napi_ok);
-
-    uv_sem_wait(&callinfo.sem);
-    uv_sem_destroy(&callinfo.sem);
-
-    status = napi_release_threadsafe_function(context->call_fn, napi_tsfn_release);
-    assert(status == napi_ok);
+    js_call_and_wait(context->call_fn, (struct js_call*) &callinfo);
 
     return result;
 }
 
 
 struct js_tx_context_call {
-  uv_sem_t sem;
+  struct js_call;
   struct evmc_tx_context result;
 };
 
+void get_tx_context_js_converter(napi_env env, napi_value result, struct js_tx_context_call* data) {
+  napi_status status;
+  napi_value node_tx_gas_price;
 
-napi_value get_tx_context_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_status status;
-    struct js_tx_context_call* data;
-    size_t argc = 1;
-    napi_value argv[1];
+  status = napi_get_named_property(env, result, "txGasPrice", &node_tx_gas_price);
+  assert(status == napi_ok);
+  get_evmc_bytes32_from_bigint(env, node_tx_gas_price, &data->result.tx_gas_price);
 
-    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
-    assert(status == napi_ok);
+  napi_value node_tx_origin;
+  status = napi_get_named_property(env, result, "txOrigin", &node_tx_origin);
+  assert(status == napi_ok);
+  get_evmc_address_from_bigint(env, node_tx_origin, &data->result.tx_origin);
 
-      napi_value node_tx_gas_price;
-      status = napi_get_named_property(env, argv[0], "txGasPrice", &node_tx_gas_price);
-      assert(status == napi_ok);
-      get_evmc_bytes32_from_bigint(env, node_tx_gas_price, &data->result.tx_gas_price);
+  napi_value node_blockcoinbase;
+  status = napi_get_named_property(env, result, "blockCoinbase", &node_blockcoinbase);
+  assert(status == napi_ok);
+  get_evmc_address_from_bigint(env, node_blockcoinbase, &data->result.block_coinbase);
 
-      napi_value node_tx_origin;
-      status = napi_get_named_property(env, argv[0], "txOrigin", &node_tx_origin);
-      assert(status == napi_ok);
-      get_evmc_address_from_bigint(env, node_tx_origin, &data->result.tx_origin);
+  napi_value node_block_number;
+  status = napi_get_named_property(env, result, "blockNumber", &node_block_number);
+  assert(status == napi_ok);
+  bool block_number_lossless = true;
+  status = napi_get_value_bigint_int64(env, node_block_number, &data->result.block_number, &block_number_lossless);
+  assert(status == napi_ok);
 
-      napi_value node_blockcoinbase;
-      status = napi_get_named_property(env, argv[0], "blockCoinbase", &node_blockcoinbase);
-      assert(status == napi_ok);
-      get_evmc_address_from_bigint(env, node_blockcoinbase, &data->result.block_coinbase);
+  napi_value node_timestamp;
+  status = napi_get_named_property(env, result, "blockTimestamp", &node_timestamp);
+  assert(status == napi_ok);
+  bool block_timestamp_lossless = true;
+  status = napi_get_value_bigint_int64(env, node_timestamp, &data->result.block_timestamp, &block_timestamp_lossless);
+  assert(status == napi_ok);
 
-      napi_value node_block_number;
-      status = napi_get_named_property(env, argv[0], "blockNumber", &node_block_number);
-      assert(status == napi_ok);
-      bool block_number_lossless = true;
-      status = napi_get_value_bigint_int64(env, node_block_number, &data->result.block_number, &block_number_lossless);
-      assert(status == napi_ok);
+  napi_value node_gas_limit;
+  status = napi_get_named_property(env, result, "blockGasLimit", &node_gas_limit);
+  assert(status == napi_ok);
+  bool block_gas_limit_lossless = true;
+  status = napi_get_value_bigint_int64(env, node_gas_limit, &data->result.block_gas_limit, &block_gas_limit_lossless);
+  assert(status == napi_ok);
 
-      napi_value node_timestamp;
-      status = napi_get_named_property(env, argv[0], "blockTimestamp", &node_timestamp);
-      assert(status == napi_ok);
-      bool block_timestamp_lossless = true;
-      status = napi_get_value_bigint_int64(env, node_timestamp, &data->result.block_timestamp, &block_timestamp_lossless);
-      assert(status == napi_ok);
-
-      napi_value node_gas_limit;
-      status = napi_get_named_property(env, argv[0], "blockGasLimit", &node_gas_limit);
-      assert(status == napi_ok);
-      bool block_gas_limit_lossless = true;
-      status = napi_get_value_bigint_int64(env, node_gas_limit, &data->result.block_gas_limit, &block_gas_limit_lossless);
-      assert(status == napi_ok);
-
-      napi_value node_block_difficulty;
-      status = napi_get_named_property(env, argv[0], "blockDifficulty", &node_block_difficulty);
-      assert(status == napi_ok);
-      get_evmc_bytes32_from_bigint(env, node_block_difficulty, &data->result.block_difficulty);
-
-    uv_sem_post(&data->sem);
-    return NULL;
+  napi_value node_block_difficulty;
+  status = napi_get_named_property(env, result, "blockDifficulty", &node_block_difficulty);
+  assert(status == napi_ok);
+  get_evmc_bytes32_from_bigint(env, node_block_difficulty, &data->result.block_difficulty);
 }
 
 void get_tx_context_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_tx_context_call* data) {
-    napi_status status;
-    napi_value object;
+  napi_status status;
+  napi_value object;
 
-    status = napi_get_reference_value(env, ctx->object, &object);
-    assert(status == napi_ok);
+  status = napi_get_reference_value(env, ctx->object, &object);
+  assert(status == napi_ok);
 
-    napi_value result;
-    status = napi_call_function(env, object, js_callback, 0, NULL, &result);
-    assert(status == napi_ok);
+  napi_value result;
+  status = napi_call_function(env, object, js_callback, 0, NULL, &result);
+  assert(status == napi_ok);
 
-    bool isPromise = false;
-    status = napi_is_promise(env, result, &isPromise);
-    assert(status == napi_ok);
-
-    if (!isPromise) {
-      napi_value node_tx_gas_price;
-      status = napi_get_named_property(env, result, "txGasPrice", &node_tx_gas_price);
-      assert(status == napi_ok);
-      get_evmc_bytes32_from_bigint(env, node_tx_gas_price, &data->result.tx_gas_price);
-
-      napi_value node_tx_origin;
-      status = napi_get_named_property(env, result, "txOrigin", &node_tx_origin);
-      assert(status == napi_ok);
-      get_evmc_address_from_bigint(env, node_tx_origin, &data->result.tx_origin);
-
-      napi_value node_blockcoinbase;
-      status = napi_get_named_property(env, result, "blockCoinbase", &node_blockcoinbase);
-      assert(status == napi_ok);
-      get_evmc_address_from_bigint(env, node_blockcoinbase, &data->result.block_coinbase);
-
-      napi_value node_block_number;
-      status = napi_get_named_property(env, result, "blockNumber", &node_block_number);
-      assert(status == napi_ok);
-      bool block_number_lossless = true;
-      status = napi_get_value_bigint_int64(env, node_block_number, &data->result.block_number, &block_number_lossless);
-      assert(status == napi_ok);
-
-      napi_value node_timestamp;
-      status = napi_get_named_property(env, result, "blockTimestamp", &node_timestamp);
-      assert(status == napi_ok);
-      bool block_timestamp_lossless = true;
-      status = napi_get_value_bigint_int64(env, node_timestamp, &data->result.block_timestamp, &block_timestamp_lossless);
-      assert(status == napi_ok);
-
-      napi_value node_gas_limit;
-      status = napi_get_named_property(env, result, "blockGasLimit", &node_gas_limit);
-      assert(status == napi_ok);
-      bool block_gas_limit_lossless = true;
-      status = napi_get_value_bigint_int64(env, node_gas_limit, &data->result.block_gas_limit, &block_gas_limit_lossless);
-      assert(status == napi_ok);
-
-      napi_value node_block_difficulty;
-      status = napi_get_named_property(env, result, "blockDifficulty", &node_block_difficulty);
-      assert(status == napi_ok);
-      get_evmc_bytes32_from_bigint(env, node_block_difficulty, &data->result.block_difficulty);
-
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, get_tx_context_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+  js_return_or_await(env, result, (struct js_call*) data, (converter_fn) get_tx_context_js_converter);
 }
 
 
 struct evmc_tx_context get_tx_context(struct evmc_js_context* context) {
-    napi_status status;
-    
     struct js_tx_context_call callinfo;
-  
-    status = napi_acquire_threadsafe_function(context->get_tx_context_fn);
-    assert(status == napi_ok);
-
-    int uv_status;
-    uv_status = uv_sem_init(&callinfo.sem, 0);
-    assert(uv_status == 0);
-
-    status = napi_call_threadsafe_function(context->get_tx_context_fn, &callinfo, napi_tsfn_blocking); 
-    assert(status == napi_ok);
-
-    uv_sem_wait(&callinfo.sem);
-    uv_sem_destroy(&callinfo.sem);
-
-    status = napi_release_threadsafe_function(context->get_tx_context_fn, napi_tsfn_release);
-    assert(status == napi_ok);
+    
+    js_call_and_wait(context->get_tx_context_fn, (struct js_call*) &callinfo);
 
     return callinfo.result;
 }
 
-
 struct js_get_block_hash_call {
-  uv_sem_t sem;
+  struct js_call;
   uint64_t number;
   evmc_bytes32 result;
 };
 
-napi_value get_block_hash_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_value argv[1];
-    napi_status status;
-    struct js_get_block_hash_call* data;
-    size_t argc = 1;
 
-    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
-    assert(status == napi_ok);
-
-    get_evmc_bytes32_from_bigint(env, argv[0], &data->result);
-    uv_sem_post(&data->sem);
-
-    return NULL;
+void get_block_hash_js_converter(napi_env env, napi_value result, struct js_get_block_hash_call* data) {
+    get_evmc_bytes32_from_bigint(env, result, &data->result);
 }
 
 void get_block_hash_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_get_block_hash_call* data) {
@@ -1276,78 +773,27 @@ void get_block_hash_js(napi_env env, napi_value js_callback, struct evmc_js_cont
     status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);
 
-    bool isPromise = false;
-    status = napi_is_promise(env, result, &isPromise);
-    assert(status == napi_ok);
-
-    if (!isPromise) {
-      get_evmc_bytes32_from_bigint(env, result, &data->result);
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, get_block_hash_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+    js_return_or_await(env, result, (struct js_call*) data, (converter_fn) get_block_hash_js_converter);
 }
 
 evmc_bytes32 get_block_hash(struct evmc_js_context* context, uint64_t number) {
-    napi_status status;
-    
     struct js_get_block_hash_call callinfo;
     callinfo.number = number;
   
-    status = napi_acquire_threadsafe_function(context->get_block_hash_fn);
-    assert(status == napi_ok);
-
-    int uv_status;
-    uv_status = uv_sem_init(&callinfo.sem, 0);
-    assert(uv_status == 0);
-
-    status = napi_call_threadsafe_function(context->get_block_hash_fn, &callinfo, napi_tsfn_blocking); 
-    assert(status == napi_ok);
-
-    uv_sem_wait(&callinfo.sem);
-    uv_sem_destroy(&callinfo.sem);
-
-    status = napi_release_threadsafe_function(context->get_block_hash_fn, napi_tsfn_release);
-    assert(status == napi_ok);
+    js_call_and_wait(context->get_block_hash_fn, (struct js_call*) &callinfo);
 
     return callinfo.result;
 }
 
 
 struct js_emit_log_call {
-  uv_sem_t sem;
+  struct js_call;
   const evmc_address* address;
   const uint8_t* data;
   size_t data_size;
   const evmc_bytes32* topics;
   size_t topics_count;
 };
-
-
-napi_value emit_log_js_promise_success(napi_env env, napi_callback_info info) {
-    napi_value argv[1];
-    napi_status status;
-    struct js_emit_log_call* data;
-    size_t argc = 1;
-
-    status = napi_get_cb_info(env, info, &argc, argv, NULL, (void**) &data);
-    assert(status == napi_ok);
-
-    uv_sem_post(&data->sem);
-
-    return NULL;
-}
 
 void emit_log_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_emit_log_call* data) {
     napi_status status;
@@ -1383,24 +829,8 @@ void emit_log_js(napi_env env, napi_value js_callback, struct evmc_js_context* c
     status = napi_is_promise(env, result, &isPromise);
     assert(status == napi_ok);
 
-    if (!isPromise) {
-      uv_sem_post(&data->sem);
-    } else {
-      napi_value then_callback;
-      status = napi_get_named_property(env, result, "then", &then_callback);
-      assert(status == napi_ok);
-
-      napi_value success_callback;
-      status = napi_create_function(env, NULL, 0, emit_log_js_promise_success, data, &success_callback);
-      assert(status == napi_ok);
-
-      napi_value args[1];
-      args[0] = success_callback;
-      status = napi_call_function(env, result, then_callback, 1, args, NULL);
-      assert(status == napi_ok);
-    }
+    js_return_or_await(env, result, (struct js_call*) data, NULL);
 }
-
 
 void emit_log(struct evmc_js_context* context,
                                  const evmc_address* address,
@@ -1408,7 +838,6 @@ void emit_log(struct evmc_js_context* context,
                                  size_t data_size,
                                  const evmc_bytes32 topics[],
                                  size_t topics_count) {
-    napi_status status;
     struct js_emit_log_call callinfo;
     callinfo.address = address;
     callinfo.data = data;
@@ -1416,21 +845,7 @@ void emit_log(struct evmc_js_context* context,
     callinfo.topics = topics;
     callinfo.topics_count = topics_count;
   
-    status = napi_acquire_threadsafe_function(context->emit_log_fn);
-    assert(status == napi_ok);
-
-    int uv_status;
-    uv_status = uv_sem_init(&callinfo.sem, 0);
-    assert(uv_status == 0);
-
-    status = napi_call_threadsafe_function(context->emit_log_fn, &callinfo, napi_tsfn_blocking); 
-    assert(status == napi_ok);
-
-    uv_sem_wait(&callinfo.sem);
-    uv_sem_destroy(&callinfo.sem);
-    
-    status = napi_release_threadsafe_function(context->emit_log_fn, napi_tsfn_release);
-    assert(status == napi_ok);                      
+    js_call_and_wait(context->emit_log_fn, (struct js_call*) &callinfo);               
 }
 
 struct js_execution_context {
