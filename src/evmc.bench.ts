@@ -249,8 +249,7 @@ const getDynamicLibraryExtension = () => {
 
 const alethPath = path.join(
     __dirname,
-    `../libbuild/aleth/libaleth-interpreter/libaleth-interpreter.${
-        getDynamicLibraryExtension()}`);
+    `../libbuild/evmone/lib/libevmone.${getDynamicLibraryExtension()}`);
 // Test the performance of evmc creation
 suite = new benchmark.Suite('evmc_creation');
 suite.add('create', () => {
