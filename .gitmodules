@@ -4,3 +4,6 @@
 [submodule "aleth"]
 	path = aleth
 	url = https://github.com/ethereum/aleth.git
+[submodule "evmone"]
+	path = evmone
+	url = https://github.com/ethereum/evmone
