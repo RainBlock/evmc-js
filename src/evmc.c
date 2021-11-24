@@ -16,7 +16,7 @@ struct evmc_js_context
     const struct evmc_host_interface* host;
 
     /** The EVMC instance. */
-    struct evmc_instance* instance;
+    struct evmc_vm* instance;
 
     /** Reference to evm object */
     napi_ref object;
@@ -1053,7 +1053,7 @@ void execute_done(uv_work_t* work, int status) {
 
 void execute(uv_work_t* work) {
   struct js_execution_context* data = (struct js_execution_context*) work->data;
-  data->result = data->context->instance->execute(data->context->instance, (struct evmc_context*) data->context, data->revision, &data->message, data->code, data->code_size);
+  data->result = data->context->instance->execute(data->context->instance, data->context->host, (struct evmc_context*) data->context, data->revision, &data->message, data->code, data->code_size);
   if (data->code_size != 0) {
     free(data->code);
   }
@@ -1214,7 +1214,7 @@ napi_value evmc_create_evm(napi_env env, napi_callback_info info) {
     assert(status == napi_ok);
     
     enum evmc_loader_error_code error_code;
-    struct evmc_instance* instance = evmc_load_and_create(path, &error_code);
+    struct evmc_vm* instance = evmc_load_and_create(path, &error_code);
     assert(error_code == EVMC_LOADER_SUCCESS);
     free((void*) path);
 
