@@ -6,7 +6,7 @@
   "types": "dist/evmc.d.ts",
   "scripts": {
     "benchmark": "node -r ts-node/register src/evmc.bench.ts",
-    "test": "git submodule update --init --recursive; mkdir -p libbuild; cd libbuild;mkdir aleth; cd aleth; cmake ../../aleth -DALETH_INTERPRETER_SHARED=true -DTOOLS=false -DTESTS=false; cd libaleth-interpreter; cmake --build .; cd ..; cd ..;cd ..;mocha -r ts-node/register src/*.spec.ts --timeout 40000",
+    "test": "git submodule update --init --recursive; mkdir -p libbuild; cd libbuild;mkdir evmone; cd evmone; cmake -S ../../evmone -B . -DEVMONE_TESTING=OFF; cmake --build . --parallel; cd ..; cd ..;mocha -r ts-node/register src/*.spec.ts --timeout 40000",
     "rebuild": "git submodule update --init --recursive; mkdir -p libbuild; cd libbuild;mkdir evmc; cd evmc; cmake ../../evmc; cmake --build .;cd ..;cd ..;node-gyp rebuild",
     "typedoc": "typedoc --out docs $(pwd)/src --target es6 --mode file --tsconfig ./tsconfig.json --excludePrivate --excludeProtected --excludeNotExported --exclude '**/*+(spec|bench).ts'",
     "check": "gts check",

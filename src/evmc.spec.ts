@@ -188,13 +188,12 @@ describe('Try EVM creation', () => {
   it('should be created', () => {
     evm = new TestEVM(path.join(
         __dirname,
-        `../libbuild/aleth/libaleth-interpreter/libaleth-interpreter.${
-            getDynamicLibraryExtension()}`));
+        `../libbuild/evmone/lib/libevmone.${getDynamicLibraryExtension()}`));
   });
 
   it('should fail to execute a bad message', async () => {
     const result = await evm.execute(EVM_MESSAGE, Buffer.from([0xfe]));
-    result.statusCode.should.equal(EvmcStatusCode.EVMC_UNDEFINED_INSTRUCTION);
+    result.statusCode.should.equal(EvmcStatusCode.EVMC_INVALID_INSTRUCTION);
   });
 
   it('should successfully execute a STOP opcode', async () => {
