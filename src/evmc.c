@@ -720,6 +720,16 @@ void get_tx_context_js_converter(napi_env env, napi_value result, struct js_tx_c
   status = napi_get_named_property(env, result, "blockDifficulty", &node_block_difficulty);
   assert(status == napi_ok);
   get_evmc_bytes32_from_bigint(env, node_block_difficulty, &data->result.block_difficulty);
+
+  napi_value node_chain_id;
+  status = napi_get_named_property(env, result, "chainId", &node_chain_id);
+  assert(status == napi_ok);
+  get_evmc_bytes32_from_bigint(env, node_chain_id, &data->result.chain_id);
+
+  napi_value node_block_base_fee;
+  status = napi_get_named_property(env, result, "blockBaseFee", &node_block_base_fee);
+  assert(status == napi_ok);
+  get_evmc_bytes32_from_bigint(env, node_block_base_fee, &data->result.block_base_fee);
 }
 
 void get_tx_context_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, struct js_tx_context_call* data) {

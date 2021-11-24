@@ -246,6 +246,8 @@ export interface EvmcTxContext {
   blockTimestamp: bigint;  /**  The block timestamp. */
   blockGasLimit: bigint;   /**  The block gas limit. */
   blockDifficulty: bigint; /** The block difficulty. */
+  chainId: bigint;         /** The chain id. */
+  blockBaseFee: bigint;    /** The block base fee. */
 }
 
 /** Private interface to interact with the EVM binding. */

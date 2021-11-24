@@ -100,6 +100,9 @@ const BLOCK_COINBASE = 0x2fab01632ab26a6349aedd19f5f8e4bbd477718n;
 const BLOCK_TIMESTAMP = 1551402771n;
 const BLOCK_GASLIMIT = 100000n;
 const BLOCK_DIFFICULTY = 2427903418305647n;
+const BLOCK_BASE_FEE = 0n;
+
+const CHAIN_ID = 1n;
 
 const TX_ORIGIN = 0xEA674fdDe714fd979de3EdF0F56AA9716B898ec8n;
 const TX_GASPRICE = 100n;
@@ -218,7 +221,9 @@ class TestEVM extends Evmc {
       blockNumber: BLOCK_NUMBER,
       blockTimestamp: BLOCK_TIMESTAMP,
       blockGasLimit: BLOCK_GASLIMIT,
-      blockDifficulty: BLOCK_DIFFICULTY
+      blockDifficulty: BLOCK_DIFFICULTY,
+      chainId: CHAIN_ID,
+      blockBaseFee: BLOCK_BASE_FEE
     };
   }
 
