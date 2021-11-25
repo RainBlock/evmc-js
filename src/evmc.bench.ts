@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as process from 'process';
 import * as util from 'util';
 
-import {Evmc, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus} from './evmc';
+import {Evmc, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus, EvmcAccessStatus} from './evmc';
 
 const evmasm = require('evmasm');
 
@@ -243,6 +243,14 @@ class TestEVM extends Evmc {
     }
     throw new Error(`Unexpected log emitted: account: ${
         account.toString(16)} data: ${data.toString('hex')} topics: ${topics}`);
+  }
+
+  accessAccount(account: bigint) {
+    return EvmcAccessStatus.EVMC_ACCESS_COLD;
+  }
+
+  accessStorage(address: bigint, key: bigint) {
+    return EvmcAccessStatus.EVMC_ACCESS_COLD;
   }
 }
 

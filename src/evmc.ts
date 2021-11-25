@@ -144,6 +144,25 @@ export enum EvmcStatusCode {
    */
   EVMC_CONTRACT_VALIDATION_FAILURE = 13,
 
+  /**
+   * An argument to a state accessing method has a value outside of the
+   * accepted range of values.
+   */
+  EVMC_ARGUMENT_OUT_OF_RANGE = 14,
+
+  /**
+   * A WebAssembly `unreachable` instruction has been hit during execution.
+   */
+  EVMC_WASM_UNREACHABLE_INSTRUCTION = 15,
+
+  /**
+   * A WebAssembly trap has been hit during execution. This can be for many
+   * reasons, including division by zero, validation errors, etc.
+   */
+  EVMC_WASM_TRAP = 16,
+
+  /** The caller does not have enough funds for value transfer. */
+  EVMC_INSUFFICIENT_BALANCE = 17,
 
   /** EVM implementation generic internal error. */
   EVMC_INTERNAL_ERROR = -1,
@@ -159,7 +178,10 @@ export enum EvmcStatusCode {
    * For example, the Client tries running a code in the EVM 1.5. If the
    * code is not supported there, the execution falls back to the EVM 1.0.
    */
-  EVMC_REJECTED = -2
+  EVMC_REJECTED = -2,
+
+  /** The VM failed to allocate the amount of memory needed for execution. */
+  EVMC_OUT_OF_MEMORY = -3
 }
 
 /** The kind of call to invoke the EVM with. */
@@ -212,6 +234,17 @@ export enum EvmcStorageStatus {
   EVMC_STORAGE_DELETED = 4
 }
 
+export enum EvmcAccessStatus {
+  /**
+   * The entry hasn't been accessed before – it's the first access.
+   */
+  EVMC_ACCESS_COLD = 0,
+
+  /**
+   * The entry is already in accessed_addresses or accessed_storage_keys.
+   */
+  EVMC_ACCESS_WARM = 1
+}
 
 export interface EvmcMessage {
   gas: bigint;
@@ -275,6 +308,8 @@ interface EvmJsContext {
   getBlockHash(num: bigint): Promise<bigint>|bigint;
   emitLog(account: bigint, data: Buffer, topics: Array<bigint>): Promise<void>|
       void;
+  accessAccount(account: bigint): Promise<EvmcAccessStatus> | EvmcAccessStatus;
+  accessStorage(address: bigint, key: bigint): Promise<EvmcAccessStatus> | EvmcAccessStatus;
   executeComplete(): void;
 }
 export abstract class Evmc {
@@ -296,6 +331,8 @@ export abstract class Evmc {
           call: this.call,
           getBlockHash: this.getBlockHash,
           emitLog: this.emitLog,
+          accessAccount: this.accessAccount,
+          accessStorage: this.accessStorage,
           executeComplete: () => {}
         },
         this);
@@ -456,6 +493,32 @@ export abstract class Evmc {
   abstract emitLog(address: bigint, data: Buffer, topics: Array<bigint>):
       Promise<void>|void;
 
+  /**
+   * Access account callback function.
+   *
+   * This callback function is used by a VM to add the given address
+   * to accessed_addresses substate (EIP-2929).
+   *
+   * @param context  The Host execution context.
+   * @param address  The address of the account.
+   * @return         EVMC_ACCESS_WARM if accessed_addresses already contained the address
+   *                 or EVMC_ACCESS_COLD otherwise.
+   */
+  abstract accessAccount(account: bigint): Promise<EvmcAccessStatus> | EvmcAccessStatus;
+
+  /**
+   * Access storage callback function.
+   *
+   * This callback function is used by a VM to add the given account storage entry
+   * to accessed_storage_keys substate (EIP-2929).
+   *
+   * @param context  The Host execution context.
+   * @param address  The address of the account.
+   * @param key      The index of the account's storage entry.
+   * @return         EVMC_ACCESS_WARM if accessed_storage_keys already contained the key
+   *                 or EVMC_ACCESS_COLD otherwise.
+   */
+  abstract accessStorage(address: bigint, key: bigint): Promise<EvmcAccessStatus> | EvmcAccessStatus;
 
   /**
    * Executes the given EVM bytecode using the input in the message
