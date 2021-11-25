@@ -51,22 +51,51 @@ export enum EvmcRevision {
   EVMC_CONSTANTINOPLE = 5,
 
   /**
-   * Reserved for the post-Constantinople upgrade. The name is likely to
-   * be changed, but the assigned number should stay.
+   * The Petersburg revision.
    *
-   * The spec draft: https://github.com/ethereum/EIPs/pull/1716.
+   * Other names: Constantinople2, ConstantinopleFix.
+   *
+   * https://eips.ethereum.org/EIPS/eip-1716
    */
-  EVMC_CONSTANTINOPLE2 = 6,
+  EVMC_PETERSBURG = 6,
 
   /**
    * The Istanbul revision.
    *
-   * The spec draft: https://eips.ethereum.org/EIPS/eip-1679.
+   * https://eips.ethereum.org/EIPS/eip-1679
    */
   EVMC_ISTANBUL = 7,
 
+  /**
+   * The Berlin revision.
+   *
+   * https://github.com/ethereum/eth1.0-specs/blob/master/network-upgrades/mainnet-upgrades/berlin.md
+   */
+  EVMC_BERLIN = 8,
+
+  /**
+   * The London revision.
+   *
+   * https://github.com/ethereum/eth1.0-specs/blob/master/network-upgrades/mainnet-upgrades/london.md
+   */
+  EVMC_LONDON = 9,
+
+  /**
+   * The Shanghai revision.
+   *
+   * https://github.com/ethereum/eth1.0-specs/blob/master/network-upgrades/mainnet-upgrades/shanghai.md
+   */
+  EVMC_SHANGHAI = 10,
+
   /** The maximum EVM revision supported. */
-  EVMC_MAX_REVISION = EVMC_ISTANBUL
+  EVMC_MAX_REVISION = EVMC_SHANGHAI,
+
+  /**
+   * The latest known EVM revision with finalized specification.
+   *
+   * This is handy for EVM tools to always use the latest revision available.
+   */
+  EVMC_LATEST_STABLE_REVISION = EVMC_LONDON
 }
 
 /** The flags for ::evmc_message. */
