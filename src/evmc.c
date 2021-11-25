@@ -67,7 +67,7 @@ void create_bigint_from_evmc_address(napi_env env, const evmc_address* address, 
 }
 
 void get_evmc_bytes32_from_bigint(napi_env env, napi_value in, evmc_bytes32* out) {
-  uint64_t temp[4];
+  uint64_t temp[4] = {0};
   size_t result_word_count = 4;
   int sign_bit = 0;
 
@@ -84,7 +84,7 @@ void get_evmc_bytes32_from_bigint(napi_env env, napi_value in, evmc_bytes32* out
 }
 
 void get_evmc_address_from_bigint(napi_env env, napi_value in, evmc_address* out) {
-  uint64_t temp[3];
+  uint64_t temp[3] = {0};
   temp[2] = 0;
   temp[1] = 0;
   temp[0] = 0;
