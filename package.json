@@ -13,7 +13,6 @@
     "compile": "tsc -p .",
     "fix": "gts fix",
     "install": "npm run clone && npm run build",
-    "prepare": "npm run compile",
     "pretest": "npm run compile",
     "posttest": "npm run check",
     "build": "npm run build:evmc && npm run build:evmone && npm run rebuild",
