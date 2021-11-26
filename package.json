@@ -12,7 +12,7 @@
     "clean": "gts clean",
     "compile": "tsc -p .",
     "fix": "gts fix",
-    "install": "npm run build",
+    "install": "git submodule update --init --recursive && npm run build",
     "prepare": "npm run compile",
     "pretest": "npm run compile",
     "posttest": "npm run check",
