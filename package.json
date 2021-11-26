@@ -1,6 +1,6 @@
 {
-  "name": "@gxchain2/evmc",
-  "version": "2.0.1",
+  "name": "evmc",
+  "version": "1.0.8",
   "description": "Ethereum EVMC bindings for node.js",
   "main": "dist/evmc.js",
   "types": "dist/evmc.d.ts",
