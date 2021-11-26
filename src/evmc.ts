@@ -1,3 +1,5 @@
+import * as path from 'path';
+
 type EvmcHandle = void;
 const evmc: EvmcBinding = require('bindings')('evmc');
 
@@ -342,13 +344,22 @@ interface EvmJsContext {
       Promise<EvmcAccessStatus>|EvmcAccessStatus;
   executeComplete(): void;
 }
+
+const getDynamicLibraryExtension = () => {
+  return process.platform === 'win32' ?
+      'dll' :
+      process.platform === 'darwin' ? 'dylib' : 'so';
+};
+
 export abstract class Evmc {
   _evm: EvmcHandle;
   released = false;
 
-  constructor(path: string) {
+  constructor(_path?: string) {
     this._evm = evmc.createEvmcEvm(
-        path, {
+        _path ?? path.join(
+          __dirname,
+          `../libbuild/evmone/lib/libevmone.${getDynamicLibraryExtension()}`), {
           getAccountExists: this.getAccountExists,
           getStorage: this.getStorage,
           setStorage: this.setStorage,

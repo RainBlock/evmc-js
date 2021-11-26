@@ -260,13 +260,13 @@ const getDynamicLibraryExtension = () => {
       process.platform === 'darwin' ? 'dylib' : 'so';
 };
 
-const alethPath = path.join(
+const evmonePath = path.join(
     __dirname,
     `../libbuild/evmone/lib/libevmone.${getDynamicLibraryExtension()}`);
 // Test the performance of evmc creation
 suite = new benchmark.Suite('evmc_creation');
 suite.add('create', () => {
-  const evm = new TestEVM(alethPath);
+  const evm = new TestEVM(evmonePath);
   evm.release();
 });
 runSuite(suite, 'evmc_creation');
@@ -276,7 +276,7 @@ suite = new benchmark.Suite('evmc_execution');
 const MAX_PARALLELISM = 4;
 const evm: Evmc[] = [];
 for (let i = 0; i < MAX_PARALLELISM; i++) {
-  evm.push(new TestEVM(alethPath));
+  evm.push(new TestEVM(evmonePath));
 }
 const SIMPLE_MESSAGE = {
   kind: EvmcCallKind.EVMC_CALL,
