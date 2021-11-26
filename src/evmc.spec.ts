@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as process from 'process';
 import * as util from 'util';
 
-import {Evmc, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus, EvmcAccessStatus} from './evmc';
+import {Evmc, EvmcAccessStatus, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus} from './evmc';
 
 const evmasm = require('evmasm');
 

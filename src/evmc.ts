@@ -337,8 +337,9 @@ interface EvmJsContext {
   getBlockHash(num: bigint): Promise<bigint>|bigint;
   emitLog(account: bigint, data: Buffer, topics: Array<bigint>): Promise<void>|
       void;
-  accessAccount(account: bigint): Promise<EvmcAccessStatus> | EvmcAccessStatus;
-  accessStorage(address: bigint, key: bigint): Promise<EvmcAccessStatus> | EvmcAccessStatus;
+  accessAccount(account: bigint): Promise<EvmcAccessStatus>|EvmcAccessStatus;
+  accessStorage(address: bigint, key: bigint):
+      Promise<EvmcAccessStatus>|EvmcAccessStatus;
   executeComplete(): void;
 }
 export abstract class Evmc {
@@ -530,24 +531,26 @@ export abstract class Evmc {
    *
    * @param context  The Host execution context.
    * @param address  The address of the account.
-   * @return         EVMC_ACCESS_WARM if accessed_addresses already contained the address
-   *                 or EVMC_ACCESS_COLD otherwise.
+   * @return         EVMC_ACCESS_WARM if accessed_addresses already contained
+   * the address or EVMC_ACCESS_COLD otherwise.
    */
-  abstract accessAccount(account: bigint): Promise<EvmcAccessStatus> | EvmcAccessStatus;
+  abstract accessAccount(account: bigint):
+      Promise<EvmcAccessStatus>|EvmcAccessStatus;
 
   /**
    * Access storage callback function.
    *
-   * This callback function is used by a VM to add the given account storage entry
-   * to accessed_storage_keys substate (EIP-2929).
+   * This callback function is used by a VM to add the given account storage
+   * entry to accessed_storage_keys substate (EIP-2929).
    *
    * @param context  The Host execution context.
    * @param address  The address of the account.
    * @param key      The index of the account's storage entry.
-   * @return         EVMC_ACCESS_WARM if accessed_storage_keys already contained the key
-   *                 or EVMC_ACCESS_COLD otherwise.
+   * @return         EVMC_ACCESS_WARM if accessed_storage_keys already contained
+   * the key or EVMC_ACCESS_COLD otherwise.
    */
-  abstract accessStorage(address: bigint, key: bigint): Promise<EvmcAccessStatus> | EvmcAccessStatus;
+  abstract accessStorage(address: bigint, key: bigint):
+      Promise<EvmcAccessStatus>|EvmcAccessStatus;
 
   /**
    * Executes the given EVM bytecode using the input in the message
