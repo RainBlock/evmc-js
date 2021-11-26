@@ -4,3 +4,4 @@ libbuild
 build
 *.tgz
 cmake.sh
+.vscode
