@@ -357,7 +357,7 @@ export abstract class Evmc {
 
   constructor(_path?: string) {
     this._evm = evmc.createEvmcEvm(
-        _path ?? path.join(
+        _path || path.join(
           __dirname,
           `../libbuild/evmone/lib/libevmone.${getDynamicLibraryExtension()}`), {
           getAccountExists: this.getAccountExists,
