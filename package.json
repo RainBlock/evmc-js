@@ -9,17 +9,20 @@
     "test": "mocha -r ts-node/register src/*.spec.ts --timeout 40000",
     "typedoc": "typedoc --out docs $(pwd)/src --target es6 --mode file --tsconfig ./tsconfig.json --excludePrivate --excludeProtected --excludeNotExported --exclude '**/*+(spec|bench).ts'",
     "check": "gts check",
-    "clean": "gts clean",
+    "clean": "rm -rf ./build ./dist ./node_modules ./libbuild ./evmc ./evmone",
     "compile": "tsc -p .",
     "fix": "gts fix",
-    "install": "git submodule update --init --recursive && npm run build",
+    "install": "npm run clone && npm run build",
     "prepare": "npm run compile",
     "pretest": "npm run compile",
     "posttest": "npm run check",
     "build": "npm run build:evmc && npm run build:evmone && npm run rebuild",
     "rebuild": "node-gyp rebuild",
     "build:evmc": "mkdir -p libbuild; cd libbuild;mkdir evmc; cd evmc; cmake ../../evmc; cmake --build .",
-    "build:evmone": "mkdir -p libbuild; cd libbuild;mkdir evmone; cd evmone; cmake -S ../../evmone -B . -DEVMONE_TESTING=OFF; cmake --build . --parallel"
+    "build:evmone": "mkdir -p libbuild; cd libbuild;mkdir evmone; cd evmone; cmake -S ../../evmone -B . -DEVMONE_TESTING=OFF; cmake --build . --parallel",
+    "clone": "npm run clone:evmc && npm run clone:evmone",
+    "clone:evmc": "git clone https://github.com/ethereum/evmc.git; cd evmc; git reset --hard 18bea41",
+    "clone:evmone": "git clone --recursive https://github.com/ethereum/evmone.git; cd evmone; git reset --hard d2de6b1; cd evmc; git reset --hard 18bea41"
   },
   "keywords": [
     "ethereum",
