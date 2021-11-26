@@ -6,17 +6,20 @@
   "types": "dist/evmc.d.ts",
   "scripts": {
     "benchmark": "node -r ts-node/register src/evmc.bench.ts",
-    "test": "git submodule update --init --recursive; mkdir -p libbuild; cd libbuild;mkdir evmone; cd evmone; cmake -S ../../evmone -B . -DEVMONE_TESTING=OFF; cmake --build . --parallel; cd ..; cd ..;mocha -r ts-node/register src/*.spec.ts --timeout 40000",
-    "rebuild": "git submodule update --init --recursive; mkdir -p libbuild; cd libbuild;mkdir evmc; cd evmc; cmake ../../evmc; cmake --build .;cd ..;cd ..;node-gyp rebuild",
+    "test": "mocha -r ts-node/register src/*.spec.ts --timeout 40000",
     "typedoc": "typedoc --out docs $(pwd)/src --target es6 --mode file --tsconfig ./tsconfig.json --excludePrivate --excludeProtected --excludeNotExported --exclude '**/*+(spec|bench).ts'",
     "check": "gts check",
     "clean": "gts clean",
     "compile": "tsc -p .",
     "fix": "gts fix",
-    "install": "npm run rebuild",
+    "install": "npm run build",
     "prepare": "npm run compile",
     "pretest": "npm run compile",
-    "posttest": "npm run check"
+    "posttest": "npm run check",
+    "build": "npm run build:evmc && npm run build:evmone && npm run rebuild",
+    "rebuild": "node-gyp rebuild",
+    "build:evmc": "mkdir -p libbuild; cd libbuild;mkdir evmc; cd evmc; cmake ../../evmc; cmake --build .",
+    "build:evmone": "mkdir -p libbuild; cd libbuild;mkdir evmone; cd evmone; cmake -S ../../evmone -B . -DEVMONE_TESTING=OFF; cmake --build . --parallel"
   },
   "keywords": [
     "ethereum",
