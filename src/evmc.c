@@ -1153,10 +1153,13 @@ void completer_js(napi_env env, napi_value js_callback, void* context, struct js
 
   if (data->result.status_code == EVMC_SUCCESS) {
     napi_value createAddress;
-    status = napi_create_bigint_words(env, 0, 4, (uint64_t*) data->result.create_address.bytes, &createAddress);
-    assert(status == napi_ok);
+    create_bigint_from_evmc_address(env, &(data->result.create_address), &createAddress);
     status = napi_set_named_property(env, out, "createAddress", createAddress);
     assert(status == napi_ok);
+  }
+
+   if (data->result.release != NULL) {
+    data->result.release(&(data->result));
   }
 
   status = napi_resolve_deferred(env, data->deferred, out);
