@@ -1270,6 +1270,11 @@ napi_value evmc_execute_evm(napi_env env, napi_callback_info info) {
   assert(status == napi_ok);
   get_evmc_bytes32_from_bigint(env, node_message_value, &js_ctx->message.value);
 
+  napi_value node_message_create2_salt;
+  status = napi_get_named_property(env, node_message, "create2Salt", &node_message_create2_salt);
+  assert(status == napi_ok);
+  get_evmc_bytes32_from_bigint(env, node_message_create2_salt, &js_ctx->message.create2_salt);
+
   napi_value node_message_kind;
   status = napi_get_named_property(env, node_message, "kind", &node_message_kind);
   assert(status == napi_ok);
