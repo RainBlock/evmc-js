@@ -1,5 +1,7 @@
-aleth
+evmone
+evmc
 libbuild
 build
 *.tgz
 cmake.sh
+.vscode

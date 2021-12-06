@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as process from 'process';
 import * as util from 'util';
 
-import {Evmc, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus} from './evmc';
+import {Evmc, EvmcAccessStatus, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus} from './evmc';
 
 const evmasm = require('evmasm');
 
@@ -35,6 +35,9 @@ const BLOCK_COINBASE = 0x2fab01632ab26a6349aedd19f5f8e4bbd477718n;
 const BLOCK_TIMESTAMP = 1551402771n;
 const BLOCK_GASLIMIT = 100000n;
 const BLOCK_DIFFICULTY = 2427903418305647n;
+const BLOCK_BASE_FEE = 0n;
+
+const CHAIN_ID = 1n;
 
 const TX_ORIGIN = 0xEA674fdDe714fd979de3EdF0F56AA9716B898ec8n;
 const TX_GASPRICE = 100n;
@@ -70,7 +73,8 @@ const EVM_MESSAGE = {
   destination: TX_DESTINATION,
   gas: TX_GAS,
   inputData: Buffer.from([]),
-  value: 0n
+  value: 0n,
+  create2Salt: 0n
 };
 
 
@@ -153,7 +157,9 @@ class TestEVM extends Evmc {
       blockNumber: BLOCK_NUMBER,
       blockTimestamp: BLOCK_TIMESTAMP,
       blockGasLimit: BLOCK_GASLIMIT,
-      blockDifficulty: BLOCK_DIFFICULTY
+      blockDifficulty: BLOCK_DIFFICULTY,
+      chainId: CHAIN_ID,
+      blockBaseFee: BLOCK_BASE_FEE
     };
   }
 
@@ -174,6 +180,14 @@ class TestEVM extends Evmc {
     throw new Error(`Unexpected log emitted: account: ${
         account.toString(16)} data: ${data.toString('hex')} topics: ${topics}`);
   }
+
+  accessAccount(account: bigint) {
+    return EvmcAccessStatus.EVMC_ACCESS_COLD;
+  }
+
+  accessStorage(address: bigint, key: bigint) {
+    return EvmcAccessStatus.EVMC_ACCESS_COLD;
+  }
 }
 
 const getDynamicLibraryExtension = () => {
@@ -188,13 +202,12 @@ describe('Try EVM creation', () => {
   it('should be created', () => {
     evm = new TestEVM(path.join(
         __dirname,
-        `../libbuild/aleth/libaleth-interpreter/libaleth-interpreter.${
-            getDynamicLibraryExtension()}`));
+        `../libbuild/evmone/lib/libevmone.${getDynamicLibraryExtension()}`));
   });
 
   it('should fail to execute a bad message', async () => {
     const result = await evm.execute(EVM_MESSAGE, Buffer.from([0xfe]));
-    result.statusCode.should.equal(EvmcStatusCode.EVMC_UNDEFINED_INSTRUCTION);
+    result.statusCode.should.equal(EvmcStatusCode.EVMC_INVALID_INSTRUCTION);
   });
 
   it('should successfully execute a STOP opcode', async () => {

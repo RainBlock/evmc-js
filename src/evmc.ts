@@ -1,3 +1,5 @@
+import * as path from 'path';
+
 type EvmcHandle = void;
 const evmc: EvmcBinding = require('bindings')('evmc');
 
@@ -51,22 +53,51 @@ export enum EvmcRevision {
   EVMC_CONSTANTINOPLE = 5,
 
   /**
-   * Reserved for the post-Constantinople upgrade. The name is likely to
-   * be changed, but the assigned number should stay.
+   * The Petersburg revision.
    *
-   * The spec draft: https://github.com/ethereum/EIPs/pull/1716.
+   * Other names: Constantinople2, ConstantinopleFix.
+   *
+   * https://eips.ethereum.org/EIPS/eip-1716
    */
-  EVMC_CONSTANTINOPLE2 = 6,
+  EVMC_PETERSBURG = 6,
 
   /**
    * The Istanbul revision.
    *
-   * The spec draft: https://eips.ethereum.org/EIPS/eip-1679.
+   * https://eips.ethereum.org/EIPS/eip-1679
    */
   EVMC_ISTANBUL = 7,
 
+  /**
+   * The Berlin revision.
+   *
+   * https://github.com/ethereum/eth1.0-specs/blob/master/network-upgrades/mainnet-upgrades/berlin.md
+   */
+  EVMC_BERLIN = 8,
+
+  /**
+   * The London revision.
+   *
+   * https://github.com/ethereum/eth1.0-specs/blob/master/network-upgrades/mainnet-upgrades/london.md
+   */
+  EVMC_LONDON = 9,
+
+  /**
+   * The Shanghai revision.
+   *
+   * https://github.com/ethereum/eth1.0-specs/blob/master/network-upgrades/mainnet-upgrades/shanghai.md
+   */
+  EVMC_SHANGHAI = 10,
+
   /** The maximum EVM revision supported. */
-  EVMC_MAX_REVISION = EVMC_ISTANBUL
+  EVMC_MAX_REVISION = EVMC_SHANGHAI,
+
+  /**
+   * The latest known EVM revision with finalized specification.
+   *
+   * This is handy for EVM tools to always use the latest revision available.
+   */
+  EVMC_LATEST_STABLE_REVISION = EVMC_LONDON
 }
 
 /** The flags for ::evmc_message. */
@@ -144,6 +175,25 @@ export enum EvmcStatusCode {
    */
   EVMC_CONTRACT_VALIDATION_FAILURE = 13,
 
+  /**
+   * An argument to a state accessing method has a value outside of the
+   * accepted range of values.
+   */
+  EVMC_ARGUMENT_OUT_OF_RANGE = 14,
+
+  /**
+   * A WebAssembly `unreachable` instruction has been hit during execution.
+   */
+  EVMC_WASM_UNREACHABLE_INSTRUCTION = 15,
+
+  /**
+   * A WebAssembly trap has been hit during execution. This can be for many
+   * reasons, including division by zero, validation errors, etc.
+   */
+  EVMC_WASM_TRAP = 16,
+
+  /** The caller does not have enough funds for value transfer. */
+  EVMC_INSUFFICIENT_BALANCE = 17,
 
   /** EVM implementation generic internal error. */
   EVMC_INTERNAL_ERROR = -1,
@@ -159,7 +209,10 @@ export enum EvmcStatusCode {
    * For example, the Client tries running a code in the EVM 1.5. If the
    * code is not supported there, the execution falls back to the EVM 1.0.
    */
-  EVMC_REJECTED = -2
+  EVMC_REJECTED = -2,
+
+  /** The VM failed to allocate the amount of memory needed for execution. */
+  EVMC_OUT_OF_MEMORY = -3
 }
 
 /** The kind of call to invoke the EVM with. */
@@ -212,6 +265,17 @@ export enum EvmcStorageStatus {
   EVMC_STORAGE_DELETED = 4
 }
 
+export enum EvmcAccessStatus {
+  /**
+   * The entry hasn't been accessed before – it's the first access.
+   */
+  EVMC_ACCESS_COLD = 0,
+
+  /**
+   * The entry is already in accessed_addresses or accessed_storage_keys.
+   */
+  EVMC_ACCESS_WARM = 1
+}
 
 export interface EvmcMessage {
   gas: bigint;
@@ -222,6 +286,7 @@ export interface EvmcMessage {
   inputData: Buffer;
   value: bigint;
   kind: EvmcCallKind;
+  create2Salt: bigint;
 }
 
 export interface EvmcExecutionParameters {
@@ -246,6 +311,8 @@ export interface EvmcTxContext {
   blockTimestamp: bigint;  /**  The block timestamp. */
   blockGasLimit: bigint;   /**  The block gas limit. */
   blockDifficulty: bigint; /** The block difficulty. */
+  chainId: bigint;         /** The chain id. */
+  blockBaseFee: bigint;    /** The block base fee. */
 }
 
 /** Private interface to interact with the EVM binding. */
@@ -273,15 +340,30 @@ interface EvmJsContext {
   getBlockHash(num: bigint): Promise<bigint>|bigint;
   emitLog(account: bigint, data: Buffer, topics: Array<bigint>): Promise<void>|
       void;
+  accessAccount(account: bigint): Promise<EvmcAccessStatus>|EvmcAccessStatus;
+  accessStorage(address: bigint, key: bigint):
+      Promise<EvmcAccessStatus>|EvmcAccessStatus;
   executeComplete(): void;
 }
+
+const getDynamicLibraryExtension = () => {
+  return process.platform === 'win32' ?
+      'dll' :
+      process.platform === 'darwin' ? 'dylib' : 'so';
+};
+
 export abstract class Evmc {
   _evm: EvmcHandle;
   released = false;
 
-  constructor(path: string) {
+  constructor(_path?: string) {
     this._evm = evmc.createEvmcEvm(
-        path, {
+        _path ||
+            path.join(
+                __dirname,
+                `../libbuild/evmone/lib/libevmone.${
+                    getDynamicLibraryExtension()}`),
+        {
           getAccountExists: this.getAccountExists,
           getStorage: this.getStorage,
           setStorage: this.setStorage,
@@ -294,6 +376,8 @@ export abstract class Evmc {
           call: this.call,
           getBlockHash: this.getBlockHash,
           emitLog: this.emitLog,
+          accessAccount: this.accessAccount,
+          accessStorage: this.accessStorage,
           executeComplete: () => {}
         },
         this);
@@ -454,6 +538,34 @@ export abstract class Evmc {
   abstract emitLog(address: bigint, data: Buffer, topics: Array<bigint>):
       Promise<void>|void;
 
+  /**
+   * Access account callback function.
+   *
+   * This callback function is used by a VM to add the given address
+   * to accessed_addresses substate (EIP-2929).
+   *
+   * @param context  The Host execution context.
+   * @param address  The address of the account.
+   * @return         EVMC_ACCESS_WARM if accessed_addresses already contained
+   * the address or EVMC_ACCESS_COLD otherwise.
+   */
+  abstract accessAccount(account: bigint):
+      Promise<EvmcAccessStatus>|EvmcAccessStatus;
+
+  /**
+   * Access storage callback function.
+   *
+   * This callback function is used by a VM to add the given account storage
+   * entry to accessed_storage_keys substate (EIP-2929).
+   *
+   * @param context  The Host execution context.
+   * @param address  The address of the account.
+   * @param key      The index of the account's storage entry.
+   * @return         EVMC_ACCESS_WARM if accessed_storage_keys already contained
+   * the key or EVMC_ACCESS_COLD otherwise.
+   */
+  abstract accessStorage(address: bigint, key: bigint):
+      Promise<EvmcAccessStatus>|EvmcAccessStatus;
 
   /**
    * Executes the given EVM bytecode using the input in the message

@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as process from 'process';
 import * as util from 'util';
 
-import {Evmc, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus} from './evmc';
+import {Evmc, EvmcAccessStatus, EvmcCallKind, EvmcMessage, EvmcStatusCode, EvmcStorageStatus} from './evmc';
 
 const evmasm = require('evmasm');
 
@@ -100,6 +100,9 @@ const BLOCK_COINBASE = 0x2fab01632ab26a6349aedd19f5f8e4bbd477718n;
 const BLOCK_TIMESTAMP = 1551402771n;
 const BLOCK_GASLIMIT = 100000n;
 const BLOCK_DIFFICULTY = 2427903418305647n;
+const BLOCK_BASE_FEE = 0n;
+
+const CHAIN_ID = 1n;
 
 const TX_ORIGIN = 0xEA674fdDe714fd979de3EdF0F56AA9716B898ec8n;
 const TX_GASPRICE = 100n;
@@ -218,7 +221,9 @@ class TestEVM extends Evmc {
       blockNumber: BLOCK_NUMBER,
       blockTimestamp: BLOCK_TIMESTAMP,
       blockGasLimit: BLOCK_GASLIMIT,
-      blockDifficulty: BLOCK_DIFFICULTY
+      blockDifficulty: BLOCK_DIFFICULTY,
+      chainId: CHAIN_ID,
+      blockBaseFee: BLOCK_BASE_FEE
     };
   }
 
@@ -239,6 +244,14 @@ class TestEVM extends Evmc {
     throw new Error(`Unexpected log emitted: account: ${
         account.toString(16)} data: ${data.toString('hex')} topics: ${topics}`);
   }
+
+  accessAccount(account: bigint) {
+    return EvmcAccessStatus.EVMC_ACCESS_COLD;
+  }
+
+  accessStorage(address: bigint, key: bigint) {
+    return EvmcAccessStatus.EVMC_ACCESS_COLD;
+  }
 }
 
 const getDynamicLibraryExtension = () => {
@@ -247,14 +260,13 @@ const getDynamicLibraryExtension = () => {
       process.platform === 'darwin' ? 'dylib' : 'so';
 };
 
-const alethPath = path.join(
+const evmonePath = path.join(
     __dirname,
-    `../libbuild/aleth/libaleth-interpreter/libaleth-interpreter.${
-        getDynamicLibraryExtension()}`);
+    `../libbuild/evmone/lib/libevmone.${getDynamicLibraryExtension()}`);
 // Test the performance of evmc creation
 suite = new benchmark.Suite('evmc_creation');
 suite.add('create', () => {
-  const evm = new TestEVM(alethPath);
+  const evm = new TestEVM(evmonePath);
   evm.release();
 });
 runSuite(suite, 'evmc_creation');
@@ -264,7 +276,7 @@ suite = new benchmark.Suite('evmc_execution');
 const MAX_PARALLELISM = 4;
 const evm: Evmc[] = [];
 for (let i = 0; i < MAX_PARALLELISM; i++) {
-  evm.push(new TestEVM(alethPath));
+  evm.push(new TestEVM(evmonePath));
 }
 const SIMPLE_MESSAGE = {
   kind: EvmcCallKind.EVMC_CALL,
@@ -273,7 +285,8 @@ const SIMPLE_MESSAGE = {
   destination: TX_DESTINATION,
   gas: TX_GAS,
   inputData: Buffer.from([]),
-  value: 0n
+  value: 0n,
+  create2Salt: 0n
 };
 
 const SINGLE_STORE_CONTRACT = Buffer.from(
