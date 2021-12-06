@@ -648,6 +648,11 @@ void call_js(napi_env env, napi_value js_callback, struct evmc_js_context* ctx, 
     status = napi_set_named_property(env, values[0], "value", node_value);
     assert(status == napi_ok);
 
+    napi_value node_create2_salt;
+    create_bigint_from_evmc_bytes32(env, &data->msg->create2_salt, &node_create2_salt);
+    status = napi_set_named_property(env, values[0], "create2Salt", node_create2_salt);
+    assert(status == napi_ok);
+
     napi_value result;
     status = napi_call_function(env, object, js_callback, 1, values, &result);
     assert(status == napi_ok);

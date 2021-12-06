@@ -285,7 +285,8 @@ const SIMPLE_MESSAGE = {
   destination: TX_DESTINATION,
   gas: TX_GAS,
   inputData: Buffer.from([]),
-  value: 0n
+  value: 0n,
+  create2Salt: 0n
 };
 
 const SINGLE_STORE_CONTRACT = Buffer.from(

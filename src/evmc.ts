@@ -286,6 +286,7 @@ export interface EvmcMessage {
   inputData: Buffer;
   value: bigint;
   kind: EvmcCallKind;
+  create2Salt: bigint;
 }
 
 export interface EvmcExecutionParameters {
